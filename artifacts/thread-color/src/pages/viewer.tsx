@@ -438,11 +438,13 @@ function renderDesign(
 
   const BRIDGE_THRESHOLD = 30; // stitch units (~3mm)
 
-  // Per-stitch radial gradient stroke — mimics light reflecting off cylindrical thread.
-  // Radial gradient centered at stitch start, radius = stitch_length × 1.4.
-  // Color stops: dark → true → bright → true → dark (5-stop for natural sheen).
-  // Set stable stroke state once — avoids redundant per-stitch ctx property writes.
-  ctx.lineWidth = Math.max(2, scale * 3);
+  // Per-stitch radial gradient stroke — exact leomurca technique (stitchcount.app style).
+  // Gradient centered at stitch start A, radius = stitch_length × 1.4.
+  // Stop positions 0→0.05→0.5→0.9→1 create a sharp dark nub at the stitch tip
+  // that defines each fiber edge when stitches overlap. ±60 shading matches
+  // the real reflectance range of polyester embroidery thread.
+  // lineWidth = scale × 4 → represents ~0.4 mm thread diameter in DST/PES units.
+  ctx.lineWidth = Math.max(1.5, scale * 4);
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
@@ -451,13 +453,15 @@ function renderDesign(
     const len = Math.hypot(dx, dy);
     if (len < 0.2) return;
 
-    const gradRadius = len * 1.4;
-    const grad = ctx.createRadialGradient(x1, y1, 0, x1, y1, gradRadius);
-    grad.addColorStop(0,    shadeHex(color, -55));
-    grad.addColorStop(0.25, color);
-    grad.addColorStop(0.5,  shadeHex(color,  55));
-    grad.addColorStop(0.75, color);
-    grad.addColorStop(1,    shadeHex(color, -55));
+    const r = len * 1.4;
+    const grad = ctx.createRadialGradient(x1, y1, 0, x1, y1, r);
+    // Rapid 0→0.05 jump: tiny dark cap at stitch origin gives each stitch a
+    // distinct "fiber tip" look — the key detail that makes fills look woven.
+    grad.addColorStop(0,    shadeHex(color, -60));
+    grad.addColorStop(0.05, color);
+    grad.addColorStop(0.5,  shadeHex(color, +60));
+    grad.addColorStop(0.9,  color);
+    grad.addColorStop(1,    shadeHex(color, -60));
 
     ctx.beginPath();
     ctx.moveTo(x1, y1);
