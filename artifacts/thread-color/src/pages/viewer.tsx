@@ -452,9 +452,14 @@ function renderDesign(
         else ctx.lineTo(sx, sy);
         lastRawX = s.x; lastRawY = s.y; hadStitch = true;
       } else if (s.type === "JUMP") {
+        // Bridge tiny movements within fill areas; lift pen for long jumps
         const dist = Math.hypot(s.x - lastRawX, s.y - lastRawY);
         if (penDown && dist < BRIDGE_THRESHOLD) ctx.moveTo(sx, sy);
         else penDown = false;
+        lastRawX = s.x; lastRawY = s.y;
+      } else {
+        // TRIM or COLOR_CHANGE — always lift the pen (no trim lines drawn)
+        penDown = false;
         lastRawX = s.x; lastRawY = s.y;
       }
     }
