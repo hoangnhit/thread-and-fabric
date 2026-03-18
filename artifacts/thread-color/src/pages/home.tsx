@@ -263,35 +263,20 @@ export default function Home() {
           transition: "border-radius 0.2s, box-shadow 0.2s",
         }}>
 
-          {/* Mode switcher */}
-          <div style={{ display: "flex", gap: 8, marginBottom: collapsed ? 0 : 18, flexWrap: "wrap", alignItems: "center" }}>
-            <button style={pill(mode === "single")} onClick={() => { switchMode("single"); setCollapsed(false); }}>🔍 Tìm mã</button>
-            <button style={pill(mode === "compare", "#0ea5e9")} onClick={() => { switchMode("compare"); setCollapsed(false); }}>↔️ So sánh 2 mã</button>
-            <button style={pill(mode === "scan", "#7c3aed")} onClick={() => { switchMode("scan"); setCollapsed(false); }}>📋 Quét danh sách</button>
-            <a href={`${import.meta.env.BASE_URL}fabrics`} style={{ textDecoration: "none" }}>
-              <button style={pill(false, "#d97706")}>🎨 Danh mục vải</button>
-            </a>
-            {scrolled && (
-              <button
-                onClick={() => setCollapsed(c => !c)}
-                title={collapsed ? "Mở rộng" : "Thu gọn"}
-                style={{
-                  marginLeft: "auto", border: "1.5px solid #e5e7eb",
-                  background: collapsed ? "#f0fdf4" : "white",
-                  borderRadius: 20, padding: "5px 10px",
-                  cursor: "pointer", fontSize: 13, lineHeight: 1,
-                  color: collapsed ? "#059669" : "#6b7280",
-                  fontWeight: 700, transition: "all 0.18s",
-                  display: "flex", alignItems: "center", gap: 4,
-                }}
-              >
-                {collapsed ? "▼ Mở" : "▲ Thu"}
-              </button>
-            )}
-          </div>
+          {/* Mode switcher — hidden when collapsed */}
+          {!collapsed && (
+            <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap", alignItems: "center" }}>
+              <button style={pill(mode === "single")} onClick={() => switchMode("single")}>🔍 Tìm mã</button>
+              <button style={pill(mode === "compare", "#0ea5e9")} onClick={() => switchMode("compare")}>↔️ So sánh 2 mã</button>
+              <button style={pill(mode === "scan", "#7c3aed")} onClick={() => switchMode("scan")}>📋 Quét danh sách</button>
+              <a href={`${import.meta.env.BASE_URL}fabrics`} style={{ textDecoration: "none" }}>
+                <button style={pill(false, "#d97706")}>🎨 Danh mục vải</button>
+              </a>
+            </div>
+          )}
 
           {/* ── SINGLE MODE ── */}
-          {!collapsed && mode === "single" && (
+          {mode === "single" && (
             <>
               <div style={inputBox(foc1)}>
                 <span style={{ fontSize: 16 }}>🟡</span>
@@ -304,8 +289,13 @@ export default function Home() {
                   style={{ flex: 1, border: "none", outline: "none", fontSize: 16, color: "#111", background: "transparent", fontFamily: "monospace", fontWeight: 600 }}
                 />
                 {q1 && <button onClick={() => setQ1("")} style={{ border: "none", background: "#f3f4f6", color: "#6b7280", borderRadius: "50%", width: 22, height: 22, cursor: "pointer", fontSize: 12, padding: 0 }}>✕</button>}
+                {scrolled && (
+                  <button onClick={() => setCollapsed(c => !c)} title={collapsed ? "Mở rộng" : "Thu gọn"} style={{ border: "1.5px solid #e5e7eb", background: collapsed ? "#f0fdf4" : "white", borderRadius: 16, padding: "3px 9px", cursor: "pointer", fontSize: 12, color: collapsed ? "#059669" : "#6b7280", fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0 }}>
+                    {collapsed ? "▼" : "▲"}
+                  </button>
+                )}
               </div>
-              {q1 && (
+              {!collapsed && q1 && (
                 <div style={{ marginTop: 12 }}>
                   {hit1 ? (
                     <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#fef3c7", border: "1.5px solid #fde68a", borderRadius: 10, padding: "10px 14px" }}>
@@ -327,7 +317,7 @@ export default function Home() {
           )}
 
           {/* ── COMPARE MODE ── */}
-          {!collapsed && mode === "compare" && (
+          {mode === "compare" && (
             <>
               <div style={inputBox(foc1)}>
                 <span style={{ fontSize: 16 }}>🟡</span>
@@ -339,7 +329,13 @@ export default function Home() {
                   style={{ flex: 1, border: "none", outline: "none", fontSize: 15, color: "#111", background: "transparent", fontFamily: "monospace", fontWeight: 600 }}
                 />
                 {q1 && <button onClick={() => setQ1("")} style={{ border: "none", background: "#f3f4f6", color: "#6b7280", borderRadius: "50%", width: 22, height: 22, cursor: "pointer", fontSize: 12, padding: 0 }}>✕</button>}
+                {scrolled && (
+                  <button onClick={() => setCollapsed(c => !c)} title={collapsed ? "Mở rộng" : "Thu gọn"} style={{ border: "1.5px solid #e5e7eb", background: collapsed ? "#f0fdf4" : "white", borderRadius: 16, padding: "3px 9px", cursor: "pointer", fontSize: 12, color: collapsed ? "#059669" : "#6b7280", fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0 }}>
+                    {collapsed ? "▼" : "▲"}
+                  </button>
+                )}
               </div>
+              {!collapsed && (<>
               <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "10px 0" }}>
                 <div style={{ flex: 1, height: 1, background: "#f1f5f9" }} />
                 <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 700 }}>SO SÁNH VỚI</span>
@@ -380,6 +376,7 @@ export default function Home() {
                   ↔️ So sánh <span style={{ background: "#fde68a", borderRadius: 6, padding: "1px 8px", fontFamily: "monospace" }}>{hit1.code}</span> với <span style={{ background: "#bae6fd", borderRadius: 6, padding: "1px 8px", fontFamily: "monospace" }}>{hit2.code}</span>
                 </div>
               )}
+            </>)}
             </>
           )}
 
