@@ -769,8 +769,8 @@ export default function Viewer() {
           {/* Logo */}
           <div style={{display:"flex",alignItems:"center",gap:6,marginRight:16,paddingRight:16,borderRight:"1px solid #1e2436"}}>
             <SpoolIcon size={20}/>
-            <span style={{fontWeight:800,fontSize:14,color:"#fff",letterSpacing:-0.3,whiteSpace:"nowrap"}}>
-              <span style={{color:"#4A9EFF"}}>stitch</span>Viewer
+            <span style={{fontWeight:900,fontSize:16,color:"#4A9EFF",letterSpacing:-0.5,whiteSpace:"nowrap"}}>
+              emb
             </span>
           </div>
           {/* Tabs */}
