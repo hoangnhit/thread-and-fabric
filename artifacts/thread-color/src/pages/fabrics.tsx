@@ -713,14 +713,14 @@ export default function Fabrics() {
             background: "rgba(0,0,0,0.85)",
             display: "flex", flexDirection: "column",
             alignItems: "center", justifyContent: "center",
-            padding: 16,
+            padding: "16px 24px",
           }}
         >
           <div
             onClick={e => e.stopPropagation()}
             style={{
               background: "white", borderRadius: 20, overflow: "hidden",
-              width: "100%", maxWidth: 500,
+              width: "100%", maxWidth: 760,
               boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
             }}
           >
