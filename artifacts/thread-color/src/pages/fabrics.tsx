@@ -795,6 +795,11 @@ export default function Fabrics() {
           </div>
         </div>
       )}
+
+      {/* ── FOOTER ── */}
+      <div style={{ textAlign: "center", padding: "20px 16px 28px", color: "#94a3b8", fontSize: 11, letterSpacing: "0.08em", fontWeight: 500 }}>
+        DESIGNED by NGUYEN HUU HOANG
+      </div>
     </div>
   );
 }

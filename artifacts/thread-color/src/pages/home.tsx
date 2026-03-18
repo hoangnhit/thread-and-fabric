@@ -638,6 +638,11 @@ export default function Home() {
         input[type="search"]::-webkit-search-cancel-button { display: none; }
         * { box-sizing: border-box; }
       `}</style>
+
+      {/* ── FOOTER ── */}
+      <div style={{ textAlign: "center", padding: "20px 16px 28px", color: "#94a3b8", fontSize: 11, letterSpacing: "0.08em", fontWeight: 500 }}>
+        DESIGNED by NGUYEN HUU HOANG
+      </div>
     </div>
   );
 }
