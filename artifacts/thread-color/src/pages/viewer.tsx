@@ -309,59 +309,78 @@ function drawFabricTexture(ctx: CanvasRenderingContext2D, w: number, h: number, 
     return;
   }
 
-  const cfgs = {
-    cloth: {
-      bg: "#0e1521",
-      warpColor: "rgba(255,255,255,0.09)", weftColor: "rgba(255,255,255,0.04)",
-      sp: 5, warpW: 0.9, weftW: 0.6, noise: true,
-    },
-    leather: {
-      bg: "#0a0806",
-      warpColor: "rgba(180,140,100,0.06)", weftColor: "rgba(180,140,100,0.03)",
-      sp: 9, warpW: 1.0, weftW: 0.6, noise: false,
-    },
-    fleece: {
-      bg: "#16141f",
-      warpColor: "rgba(255,255,255,0.06)", weftColor: "rgba(255,255,255,0.06)",
-      sp: 3.5, warpW: 0.7, weftW: 0.7, noise: true,
-    },
-  };
-  const cfg = cfgs[fabricType as keyof typeof cfgs] || cfgs.cloth;
+  // ── Cloth: denim-style diagonal twill (matches reference photo) ──
+  if (fabricType === "cloth") {
+    ctx.fillStyle = "#141618";
+    ctx.fillRect(0, 0, w, h);
 
-  ctx.fillStyle = cfg.bg;
-  ctx.fillRect(0, 0, w, h);
+    const pitch = 6; // px per twill ridge
+    const diag = w + h;
 
-  // Warp threads (vertical lines)
-  ctx.beginPath();
-  ctx.strokeStyle = cfg.warpColor;
-  ctx.lineWidth = cfg.warpW;
-  for (let x = 0; x < w; x += cfg.sp) { ctx.moveTo(x, 0); ctx.lineTo(x, h); }
-  ctx.stroke();
-
-  // Weft threads (horizontal lines)
-  ctx.beginPath();
-  ctx.strokeStyle = cfg.weftColor;
-  ctx.lineWidth = cfg.weftW;
-  for (let y = 0; y < h; y += cfg.sp) { ctx.moveTo(0, y); ctx.lineTo(w, y); }
-  ctx.stroke();
-
-  // Interlocking weave highlight dots at intersections (simulates over/under)
-  if (cfg.noise) {
-    ctx.fillStyle = "rgba(255,255,255,0.04)";
-    for (let x = 0; x < w; x += cfg.sp * 2) {
-      for (let y = (x / cfg.sp) % 2 === 0 ? 0 : cfg.sp; y < h; y += cfg.sp * 2) {
-        ctx.fillRect(x, y, cfg.sp * 0.8, cfg.sp * 0.8);
-      }
+    // Main diagonal twill ridges — batched for performance
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(255,255,255,0.10)";
+    ctx.lineWidth = pitch * 0.55;
+    for (let d = -diag; d < diag * 2; d += pitch) {
+      ctx.moveTo(d, 0); ctx.lineTo(d + h, h);
     }
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(0,0,0,0.28)";
+    ctx.lineWidth = pitch * 0.45;
+    for (let d = -diag; d < diag * 2; d += pitch) {
+      ctx.moveTo(d + pitch * 0.6, 0); ctx.lineTo(d + pitch * 0.6 + h, h);
+    }
+    ctx.stroke();
+
+    // Fine cross-grain lines (perpendicular weft — subtle, denser)
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(255,255,255,0.025)";
+    ctx.lineWidth = 0.6;
+    for (let d = -diag; d < diag * 2; d += pitch * 0.75) {
+      ctx.moveTo(d + h, 0); ctx.lineTo(d, h);
+    }
+    ctx.stroke();
+
+    // Vignette
+    const vig = ctx.createRadialGradient(w/2, h/2, Math.min(w,h)*0.25, w/2, h/2, Math.max(w,h)*0.85);
+    vig.addColorStop(0, "rgba(0,0,0,0)");
+    vig.addColorStop(1, "rgba(0,0,0,0.60)");
+    ctx.fillStyle = vig; ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+    return;
   }
 
-  // Vignette — dark edges to frame the design
-  const vig = ctx.createRadialGradient(w/2, h/2, Math.min(w,h)*0.3, w/2, h/2, Math.max(w,h)*0.8);
-  vig.addColorStop(0, "rgba(0,0,0,0)");
-  vig.addColorStop(1, "rgba(0,0,0,0.55)");
-  ctx.fillStyle = vig;
-  ctx.fillRect(0, 0, w, h);
+  // ── Leather ──────────────────────────────────────────────────────
+  if (fabricType === "leather") {
+    ctx.fillStyle = "#0a0806";
+    ctx.fillRect(0, 0, w, h);
+    ctx.beginPath(); ctx.strokeStyle = "rgba(180,130,80,0.05)"; ctx.lineWidth = 1;
+    for (let x = 0; x < w; x += 9) { ctx.moveTo(x,0); ctx.lineTo(x,h); }
+    ctx.stroke();
+    ctx.beginPath(); ctx.strokeStyle = "rgba(180,130,80,0.03)"; ctx.lineWidth = 0.6;
+    for (let y = 0; y < h; y += 9) { ctx.moveTo(0,y); ctx.lineTo(w,y); }
+    ctx.stroke();
+    const vigL = ctx.createRadialGradient(w/2,h/2,Math.min(w,h)*0.3,w/2,h/2,Math.max(w,h)*0.8);
+    vigL.addColorStop(0,"rgba(0,0,0,0)"); vigL.addColorStop(1,"rgba(0,0,0,0.55)");
+    ctx.fillStyle=vigL; ctx.fillRect(0,0,w,h);
+    ctx.restore();
+    return;
+  }
 
+  // ── Fleece ───────────────────────────────────────────────────────
+  ctx.fillStyle = "#15131d";
+  ctx.fillRect(0, 0, w, h);
+  ctx.beginPath(); ctx.strokeStyle = "rgba(255,255,255,0.05)"; ctx.lineWidth = 0.7;
+  for (let x = 0; x < w; x += 3.5) { ctx.moveTo(x,0); ctx.lineTo(x,h); }
+  ctx.stroke();
+  ctx.beginPath(); ctx.strokeStyle = "rgba(255,255,255,0.05)"; ctx.lineWidth = 0.7;
+  for (let y = 0; y < h; y += 3.5) { ctx.moveTo(0,y); ctx.lineTo(w,y); }
+  ctx.stroke();
+  const vigF = ctx.createRadialGradient(w/2,h/2,Math.min(w,h)*0.3,w/2,h/2,Math.max(w,h)*0.8);
+  vigF.addColorStop(0,"rgba(0,0,0,0)"); vigF.addColorStop(1,"rgba(0,0,0,0.5)");
+  ctx.fillStyle=vigF; ctx.fillRect(0,0,w,h);
   ctx.restore();
 }
 
@@ -418,9 +437,8 @@ function renderDesign(
   }
 
   const BRIDGE_THRESHOLD = 30; // stitch units (~3mm)
-  // Thread diameter ≈ 4 stitch-units (0.4mm). We want each stroke to fill the
-  // gap between adjacent stitches so thread looks tightly packed like real embroidery.
-  const baseW = Math.max(1.8, scale * 1.8);
+  // Match reference photo: thin thread (≈1–1.5 px) closely packed
+  const baseW = Math.max(1.1, scale * 1.3);
 
   // Build the path for a segment, returns true if it had any STITCH points
   function buildPath(seg: {start:number;end:number;ci:number}): boolean {
@@ -448,31 +466,31 @@ function renderDesign(
     const color = colors[seg.ci] ?? colors[seg.ci % colors.length] ?? "#ffffff";
     ctx.lineCap = "round"; ctx.lineJoin = "round";
 
-    // Pass 1 — shadow (wide, very dark, low opacity — fills gap between stitches)
-    if (buildPath(seg)) {
-      ctx.lineWidth = baseW * 2.8;
-      ctx.strokeStyle = hexAlpha(shadeHex(color, -90), 0.40);
-      ctx.stroke();
-    }
-
-    // Pass 2 — thread body (fills remaining gap with the actual color)
+    // Pass 1 — shadow halo (fills gap, creates depth between stitches)
     if (buildPath(seg)) {
       ctx.lineWidth = baseW * 2.0;
-      ctx.strokeStyle = shadeHex(color, -30);
+      ctx.strokeStyle = hexAlpha(shadeHex(color, -80), 0.38);
       ctx.stroke();
     }
 
-    // Pass 3 — core color (slightly narrower, full brightness)
+    // Pass 2 — thread body (edge color, slightly darker than true color)
     if (buildPath(seg)) {
-      ctx.lineWidth = baseW * 1.2;
+      ctx.lineWidth = baseW * 1.5;
+      ctx.strokeStyle = shadeHex(color, -28);
+      ctx.stroke();
+    }
+
+    // Pass 3 — core (true color, narrower — the illuminated top of the thread)
+    if (buildPath(seg)) {
+      ctx.lineWidth = baseW * 1.0;
       ctx.strokeStyle = color;
       ctx.stroke();
     }
 
-    // Pass 4 — highlight shimmer (bright streak, very thin)
-    if (baseW >= 1.0 && buildPath(seg)) {
-      ctx.lineWidth = Math.max(0.4, baseW * 0.35);
-      ctx.strokeStyle = hexAlpha(shadeHex(color, 110), 0.55);
+    // Pass 4 — highlight shimmer (thin bright streak mimicking thread sheen)
+    if (buildPath(seg)) {
+      ctx.lineWidth = Math.max(0.3, baseW * 0.28);
+      ctx.strokeStyle = hexAlpha(shadeHex(color, 100), 0.50);
       ctx.stroke();
     }
   }
