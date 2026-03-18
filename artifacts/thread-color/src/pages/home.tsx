@@ -266,7 +266,7 @@ export default function Home() {
 
           {/* Mode switcher — hidden when collapsed */}
           {!collapsed && (
-            <div style={{ display: "flex", gap: 5, marginBottom: 18, flexWrap: "nowrap", alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap", alignItems: "center", justifyContent: "center" }}>
               <button style={pill(mode === "single")} onClick={() => switchMode("single")}>🔍 Tìm mã</button>
               <button style={pill(mode === "compare", "#0ea5e9")} onClick={() => switchMode("compare")}>↔️ So sánh 2 mã</button>
               <button style={pill(mode === "scan", "#7c3aed")} onClick={() => switchMode("scan")}>📋 Quét DS</button>

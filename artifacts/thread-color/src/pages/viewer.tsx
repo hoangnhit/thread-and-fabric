@@ -753,7 +753,7 @@ export default function Viewer() {
     setEditedColors(prev=>{const n=[...prev];n[i]=color;return n;});
   };
 
-  const toInches = (units:number) => (units/254).toFixed(2);
+  const toMm = (units:number) => Math.round(units / 10);
   const timeMin = design ? Math.ceil(design.stitchCount/spm) : 0;
   const timeStr = timeMin>=60 ? `${Math.floor(timeMin/60)} h ${timeMin%60} min` : `${timeMin} min`;
 
@@ -854,7 +854,7 @@ export default function Viewer() {
                     {design.stitchCount.toLocaleString()}
                   </div>
                   <div style={{fontSize:13,color:"#4A9EFF",fontWeight:600,marginTop:2,textAlign:"right"}}>
-                    {toInches(design.width)} × {toInches(design.height)} in
+                    {toMm(design.width)} × {toMm(design.height)} mm
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:8,marginTop:10,paddingTop:10,borderTop:"1px solid #1e2a42"}}>
                     <div style={{position:"relative"}}>
