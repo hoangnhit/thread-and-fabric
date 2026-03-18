@@ -420,7 +420,7 @@ function renderDesign(
   const BRIDGE_THRESHOLD = 30; // stitch units (~3mm)
   // Thread diameter ≈ 4 stitch-units (0.4mm). We want each stroke to fill the
   // gap between adjacent stitches so thread looks tightly packed like real embroidery.
-  const baseW = Math.max(2.8, scale * 2.6);
+  const baseW = Math.max(1.8, scale * 1.8);
 
   // Build the path for a segment, returns true if it had any STITCH points
   function buildPath(seg: {start:number;end:number;ci:number}): boolean {
