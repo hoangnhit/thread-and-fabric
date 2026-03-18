@@ -418,7 +418,9 @@ function renderDesign(
   }
 
   const BRIDGE_THRESHOLD = 30; // stitch units (~3mm)
-  const baseW = Math.max(1.4, scale * 1.1);
+  // Thread diameter ≈ 4 stitch-units (0.4mm). We want each stroke to fill the
+  // gap between adjacent stitches so thread looks tightly packed like real embroidery.
+  const baseW = Math.max(2.8, scale * 2.6);
 
   // Build the path for a segment, returns true if it had any STITCH points
   function buildPath(seg: {start:number;end:number;ci:number}): boolean {
@@ -446,23 +448,23 @@ function renderDesign(
     const color = colors[seg.ci] ?? colors[seg.ci % colors.length] ?? "#ffffff";
     ctx.lineCap = "round"; ctx.lineJoin = "round";
 
-    // Pass 1 — shadow (wide, very dark, low opacity)
+    // Pass 1 — shadow (wide, very dark, low opacity — fills gap between stitches)
     if (buildPath(seg)) {
-      ctx.lineWidth = baseW * 2.2;
-      ctx.strokeStyle = hexAlpha(shadeHex(color, -90), 0.45);
+      ctx.lineWidth = baseW * 2.8;
+      ctx.strokeStyle = hexAlpha(shadeHex(color, -90), 0.40);
       ctx.stroke();
     }
 
-    // Pass 2 — thread body (main color, slightly darkened at edges via compositing)
+    // Pass 2 — thread body (fills remaining gap with the actual color)
     if (buildPath(seg)) {
-      ctx.lineWidth = baseW * 1.6;
-      ctx.strokeStyle = shadeHex(color, -25);
+      ctx.lineWidth = baseW * 2.0;
+      ctx.strokeStyle = shadeHex(color, -30);
       ctx.stroke();
     }
 
-    // Pass 3 — core color (bright, narrower)
+    // Pass 3 — core color (slightly narrower, full brightness)
     if (buildPath(seg)) {
-      ctx.lineWidth = baseW * 1.0;
+      ctx.lineWidth = baseW * 1.2;
       ctx.strokeStyle = color;
       ctx.stroke();
     }
