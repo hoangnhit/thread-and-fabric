@@ -140,7 +140,19 @@ export default function Home() {
   const [foc1, setFoc1] = useState(false);
   const [foc2, setFoc2] = useState(false);
   const [focusedScan, setFocusedScan] = useState<Hit | null>(null);
+  const [scrolled, setScrolled] = useState(false);
   const chartRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const topRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = document.querySelector(".page-scroll-root") ?? window;
+    const handler = () => {
+      const y = el === window ? window.scrollY : (el as HTMLElement).scrollTop;
+      setScrolled(y > 80);
+    };
+    el.addEventListener("scroll", handler, { passive: true });
+    return () => el.removeEventListener("scroll", handler);
+  }, []);
 
   // hits
   const hit1 = findCode(q1);
@@ -208,7 +220,7 @@ export default function Home() {
   });
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f8fafc", fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif" }}>
+    <div ref={topRef} style={{ minHeight: "100vh", background: "#f8fafc", fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif" }}>
 
       {/* ── HERO ── */}
       <div style={{
@@ -231,10 +243,21 @@ export default function Home() {
       </div>
 
       {/* ── MAIN CARD ── */}
-      <div style={{ maxWidth: 640, margin: "-28px auto 0", padding: "0 16px", position: "relative", zIndex: 10 }}>
+      <div style={{
+        position: "sticky", top: 0, zIndex: 50,
+        background: scrolled ? "#f8fafc" : "transparent",
+        paddingTop: scrolled ? 8 : 0,
+        transition: "background 0.2s, padding 0.2s",
+      }}>
+      <div style={{ maxWidth: 640, margin: scrolled ? "0 auto" : "-28px auto 0", padding: "0 16px", position: "relative", zIndex: 10, transition: "margin 0.2s" }}>
         <div style={{
-          background: "white", borderRadius: 20, padding: 20,
-          boxShadow: "0 8px 40px rgba(0,0,0,0.13), 0 2px 8px rgba(0,0,0,0.06)",
+          background: "white",
+          borderRadius: scrolled ? "0 0 20px 20px" : 20,
+          padding: 20,
+          boxShadow: scrolled
+            ? "0 4px 20px rgba(0,0,0,0.15)"
+            : "0 8px 40px rgba(0,0,0,0.13), 0 2px 8px rgba(0,0,0,0.06)",
+          transition: "border-radius 0.2s, box-shadow 0.2s",
         }}>
 
           {/* Mode switcher */}
@@ -394,6 +417,25 @@ export default function Home() {
 
         </div>
       </div>
+      </div>
+
+      {/* ── BACK TO TOP ── */}
+      {scrolled && (
+        <button
+          onClick={() => topRef.current?.scrollIntoView({ behavior: "smooth" })}
+          style={{
+            position: "fixed", right: 16, bottom: 28, zIndex: 200,
+            width: 44, height: 44, borderRadius: "50%",
+            background: "linear-gradient(135deg, #065f46, #059669)",
+            border: "none", cursor: "pointer",
+            boxShadow: "0 4px 16px rgba(5,150,105,0.45)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 20, color: "white",
+            transition: "opacity 0.25s, transform 0.25s",
+          }}
+          title="Về đầu trang"
+        >⬆</button>
+      )}
 
       {/* ── CHARTS ── */}
       <main style={{ maxWidth: 640, margin: "0 auto", padding: "24px 16px 40px" }}>
