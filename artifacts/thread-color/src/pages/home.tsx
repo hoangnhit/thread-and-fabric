@@ -272,6 +272,9 @@ export default function Home() {
               <a href={`${import.meta.env.BASE_URL}fabrics`} style={{ textDecoration: "none" }}>
                 <button style={pill(false, "#d97706")}>🎨 Danh mục vải</button>
               </a>
+              <a href={`${import.meta.env.BASE_URL}viewer`} style={{ textDecoration: "none" }}>
+                <button style={pill(false, "#6d28d9")}>🧵 Xem file thêu</button>
+              </a>
             </div>
           )}
 

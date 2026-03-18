@@ -91,6 +91,18 @@ Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used b
 
 Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
 
+### `artifacts/thread-color` (`@workspace/thread-color`)
+
+React + Vite frontend for Gingko Brand embroidery thread color lookup. Routes:
+- `/` — Home: search thread codes (single/compare/scan modes), chart photo highlighting
+- `/fabrics` — Fabric catalog: external image URLs served via proxy, CRUD from DB
+- `/viewer` — Embroidery file viewer: upload .pes/.dst files and render stitches on canvas
+  - DST parser: custom implementation from manthrax/DSTLoader.js bit spec (1,3,9,27,81 ternary encoding)
+  - PES parser: parses PEC block (offset at byte 8), stitch data at PEC+528, signed7/signed12 encoding
+  - Canvas renderer: zoom/pan, multi-color segments, drag support, touch pinch-zoom
+
+API endpoints used: `GET /api/fabrics`, `POST/PUT/DELETE /api/fabrics/:id`, `GET /api/proxy-image?url=<encoded>`
+
 ### `scripts` (`@workspace/scripts`)
 
 Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
