@@ -141,6 +141,7 @@ export default function Home() {
   const [foc2, setFoc2] = useState(false);
   const [focusedScan, setFocusedScan] = useState<Hit | null>(null);
   const [scrolled, setScrolled] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const chartRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const topRef = useRef<HTMLDivElement>(null);
 
@@ -148,7 +149,9 @@ export default function Home() {
     const el = document.querySelector(".page-scroll-root") ?? window;
     const handler = () => {
       const y = el === window ? window.scrollY : (el as HTMLElement).scrollTop;
-      setScrolled(y > 80);
+      const nowScrolled = y > 80;
+      setScrolled(nowScrolled);
+      if (!nowScrolled) setCollapsed(false);
     };
     el.addEventListener("scroll", handler, { passive: true });
     return () => el.removeEventListener("scroll", handler);
@@ -261,17 +264,34 @@ export default function Home() {
         }}>
 
           {/* Mode switcher */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
-            <button style={pill(mode === "single")} onClick={() => switchMode("single")}>🔍 Tìm mã</button>
-            <button style={pill(mode === "compare", "#0ea5e9")} onClick={() => switchMode("compare")}>↔️ So sánh 2 mã</button>
-            <button style={pill(mode === "scan", "#7c3aed")} onClick={() => switchMode("scan")}>📋 Quét danh sách</button>
+          <div style={{ display: "flex", gap: 8, marginBottom: collapsed ? 0 : 18, flexWrap: "wrap", alignItems: "center" }}>
+            <button style={pill(mode === "single")} onClick={() => { switchMode("single"); setCollapsed(false); }}>🔍 Tìm mã</button>
+            <button style={pill(mode === "compare", "#0ea5e9")} onClick={() => { switchMode("compare"); setCollapsed(false); }}>↔️ So sánh 2 mã</button>
+            <button style={pill(mode === "scan", "#7c3aed")} onClick={() => { switchMode("scan"); setCollapsed(false); }}>📋 Quét danh sách</button>
             <a href={`${import.meta.env.BASE_URL}fabrics`} style={{ textDecoration: "none" }}>
               <button style={pill(false, "#d97706")}>🎨 Danh mục vải</button>
             </a>
+            {scrolled && (
+              <button
+                onClick={() => setCollapsed(c => !c)}
+                title={collapsed ? "Mở rộng" : "Thu gọn"}
+                style={{
+                  marginLeft: "auto", border: "1.5px solid #e5e7eb",
+                  background: collapsed ? "#f0fdf4" : "white",
+                  borderRadius: 20, padding: "5px 10px",
+                  cursor: "pointer", fontSize: 13, lineHeight: 1,
+                  color: collapsed ? "#059669" : "#6b7280",
+                  fontWeight: 700, transition: "all 0.18s",
+                  display: "flex", alignItems: "center", gap: 4,
+                }}
+              >
+                {collapsed ? "▼ Mở" : "▲ Thu"}
+              </button>
+            )}
           </div>
 
           {/* ── SINGLE MODE ── */}
-          {mode === "single" && (
+          {!collapsed && mode === "single" && (
             <>
               <div style={inputBox(foc1)}>
                 <span style={{ fontSize: 16 }}>🟡</span>
@@ -307,7 +327,7 @@ export default function Home() {
           )}
 
           {/* ── COMPARE MODE ── */}
-          {mode === "compare" && (
+          {!collapsed && mode === "compare" && (
             <>
               <div style={inputBox(foc1)}>
                 <span style={{ fontSize: 16 }}>🟡</span>
@@ -364,7 +384,7 @@ export default function Home() {
           )}
 
           {/* ── SCAN MODE ── */}
-          {mode === "scan" && (
+          {!collapsed && mode === "scan" && (
             <>
               <p style={{ margin: "0 0 10px", fontSize: 13, color: "#6b7280", lineHeight: 1.5 }}>
                 Dán danh sách mã chỉ vào đây (ví dụ: <span style={{ fontFamily: "monospace", background: "#f1f5f9", padding: "1px 6px", borderRadius: 4 }}>R=G721, P=G921, Y=5675</span>). App sẽ tìm và khoanh tất cả mã có trong bảng.
