@@ -69,6 +69,8 @@ export default function Fabrics() {
   const [newImage, setNewImage] = useState<string | null>(null);
   const [newImageFileName, setNewImageFileName] = useState("");
   const [pickerHex, setPickerHex] = useState("#4A90D9");
+  const [urlInput, setUrlInput] = useState("");
+  const [urlError, setUrlError] = useState("");
   const [search, setSearch] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
@@ -91,8 +93,24 @@ export default function Fabrics() {
     setNewImage(null);
     setNewImageFileName("");
     setPickerHex("#4A90D9");
+    setUrlInput("");
+    setUrlError("");
     setAddTab("color");
     setShowAdd(false);
+  };
+
+  const handleApplyUrl = () => {
+    const trimmed = urlInput.trim();
+    if (!trimmed) return;
+    try {
+      new URL(trimmed);
+    } catch {
+      setUrlError("Link không hợp lệ. VD: https://example.com/image.jpg");
+      return;
+    }
+    setUrlError("");
+    setNewImage(trimmed);
+    setNewImageFileName("link ảnh");
   };
 
   const handleAdd = () => {
@@ -297,6 +315,35 @@ export default function Fabrics() {
                       )}
                     </div>
                     <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleFileSelect(f); e.target.value = ""; }} />
+
+                    {/* URL input */}
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", marginBottom: 6 }}>
+                        🔗 Hoặc dán link ảnh
+                      </div>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <input
+                          value={urlInput}
+                          onChange={e => { setUrlInput(e.target.value); setUrlError(""); }}
+                          onKeyDown={e => e.key === "Enter" && handleApplyUrl()}
+                          placeholder="https://example.com/anh-vai.jpg"
+                          style={{
+                            flex: 1, border: `1.5px solid ${urlError ? "#ef4444" : "#e5e7eb"}`,
+                            borderRadius: 8, padding: "8px 10px", fontSize: 12,
+                            outline: "none", fontFamily: "inherit", minWidth: 0,
+                          }}
+                        />
+                        <button
+                          onClick={handleApplyUrl}
+                          style={{
+                            padding: "8px 12px", background: "#0f4c81", color: "white",
+                            border: "none", borderRadius: 8, cursor: "pointer",
+                            fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
+                          }}
+                        >Dùng</button>
+                      </div>
+                      {urlError && <div style={{ fontSize: 11, color: "#ef4444", marginTop: 4 }}>{urlError}</div>}
+                    </div>
                   </>
                 )}
 
