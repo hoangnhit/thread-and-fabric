@@ -439,24 +439,21 @@ function renderDesign(
   const BRIDGE_THRESHOLD = 30; // stitch units (~3mm)
 
   // Per-stitch linear gradient PERPENDICULAR to stitch direction.
-  // Physically correct cylindrical-thread simulation — two-pass render:
-  //   Pass 1: full-width stroke with proportional shadow/highlight gradient
-  //   Pass 2: narrow specular line (15% of thread width) for silk/polyester gloss
-  // Proportional shading: multiply RGB channels (never additive) so dark-colored
-  // threads keep their hue in shadow instead of turning pure black.
-  // lineWidth = scale × 4 → ~0.4 mm real thread diameter in DST/PES units.
-  const lw = Math.max(1.5, scale * 4);
+  // Models a cylinder lit from one side: shadow → true color → highlight → true → shadow.
+  // Proportional (multiplicative) shading so dark thread keeps its hue in shadow.
+  // Moderate contrast (0.58× shadow / 1.28× highlight) — matches real #40 polyester
+  // thread at standard embroidery viewing distance. No inner grooves, no extra passes.
+  // lineWidth = scale × 3.5 → ~0.35 mm, close to real thread diameter in DST/PES units.
+  const lw = Math.max(1.5, scale * 3.5);
+  ctx.lineWidth = lw;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
-  // Proportional shade: factor < 1 = darker, > 1 = lighter. Preserves hue.
-  function blendColor(hex: string, factor: number): string {
+  // Multiply RGB channels proportionally — preserves hue unlike additive shadeHex.
+  function tc(hex: string, f: number): string {
     const n = parseInt(hex.replace("#","").padEnd(6,"0").slice(0,6), 16);
-    const clamp = (v:number) => Math.max(0, Math.min(255, Math.round(v)));
-    const r = clamp(((n>>16)&0xff) * factor);
-    const g = clamp(((n>>8 )&0xff) * factor);
-    const b = clamp(( n     &0xff) * factor);
-    return `#${r.toString(16).padStart(2,"0")}${g.toString(16).padStart(2,"0")}${b.toString(16).padStart(2,"0")}`;
+    const c = (v:number) => Math.max(0,Math.min(255,Math.round(v)));
+    return `#${c(((n>>16)&0xff)*f).toString(16).padStart(2,"0")}${c(((n>>8)&0xff)*f).toString(16).padStart(2,"0")}${c((n&0xff)*f).toString(16).padStart(2,"0")}`;
   }
 
   function drawThread(x1:number,y1:number,x2:number,y2:number,color:string) {
@@ -464,43 +461,30 @@ function renderDesign(
     const len = Math.hypot(dx, dy);
     if (len < 0.2) return;
 
-    // Perpendicular unit vector (normal to stitch)
-    const nx = -dy / len, ny = dx / len;
+    // Unit vector perpendicular to stitch direction
+    const nx = -dy/len, ny = dx/len;
     const hw = lw * 0.5;
     const mx = (x1+x2)*0.5, my = (y1+y2)*0.5;
 
-    // ── Pass 1: main thread body with cylindrical gradient ─────────
-    const grad = ctx.createLinearGradient(
-      mx - nx*hw, my - ny*hw,    // shadow edge
-      mx + nx*hw, my + ny*hw     // highlight edge
+    // Smooth 5-stop cylindrical gradient across thread width:
+    //  edge shadow → true color → highlight → true color → edge shadow
+    // The gradient rotates with stitch angle, so adjacent fill stitches catch
+    // light from different angles — creating natural textile variation.
+    const g = ctx.createLinearGradient(
+      mx - nx*hw, my - ny*hw,
+      mx + nx*hw, my + ny*hw
     );
-    // Proportional shading: 0.42× = deep shadow, 1.0 = true, 1.55× = polyester sheen
-    // Narrow highlight (0.38–0.62) matches the specular zone of #40-weight thread
-    grad.addColorStop(0,    blendColor(color, 0.42)); // shadow edge
-    grad.addColorStop(0.28, color);                    // true color
-    grad.addColorStop(0.38, blendColor(color, 0.42)); // inner shadow (makes highlight pop)
-    grad.addColorStop(0.50, blendColor(color, 1.55)); // highlight peak
-    grad.addColorStop(0.62, blendColor(color, 0.42)); // inner shadow
-    grad.addColorStop(0.72, color);                    // true color
-    grad.addColorStop(1,    blendColor(color, 0.42)); // shadow edge
+    g.addColorStop(0,    tc(color, 0.58)); // shadow edge
+    g.addColorStop(0.30, color);           // true color
+    g.addColorStop(0.50, tc(color, 1.28)); // highlight center
+    g.addColorStop(0.70, color);           // true color
+    g.addColorStop(1,    tc(color, 0.58)); // shadow edge
 
-    ctx.lineWidth = lw;
     ctx.beginPath();
     ctx.moveTo(x1, y1);
     ctx.lineTo(x2, y2);
-    ctx.strokeStyle = grad;
+    ctx.strokeStyle = g;
     ctx.stroke();
-
-    // ── Pass 2: specular highlight — thin bright line down thread center ──
-    // Simulates the specular gloss of polyester/rayon embroidery thread.
-    ctx.lineWidth = lw * 0.18;
-    ctx.globalAlpha = 0.28;
-    ctx.strokeStyle = blendColor(color, 2.2);
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
   }
 
   // Render each color segment stitch-by-stitch
