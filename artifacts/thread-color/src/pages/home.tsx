@@ -15,7 +15,7 @@ const ROW_Y: Record<string, number> = {
 };
 
 // Height (natural px) to show above/below each row center
-const ROW_HALF_H = 68;
+const ROW_HALF_H = 80;
 
 // Swatch X bounds in natural pixels (exclude side labels)
 const SWATCH_X1 = 355;
@@ -31,7 +31,7 @@ const ROW_LABEL: Record<string, string> = {
 };
 
 // Strip display height in px
-const STRIP_H = 120;
+const STRIP_H = 160;
 
 function hexToRgb(hex: string) {
   return {
