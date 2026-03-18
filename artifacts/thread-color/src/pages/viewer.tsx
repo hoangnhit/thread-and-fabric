@@ -437,34 +437,34 @@ function renderDesign(
   }
 
   const BRIDGE_THRESHOLD = 30; // stitch units (~3mm)
-  // Physical thread diameter ≈ 4 stitch units (0.4 mm).
-  // Each stitch is drawn as a filled rotated rectangle with a perpendicular
-  // gradient so it looks like a cylindrical thread, not a flat brush stroke.
-  const threadR = Math.max(1.5, scale * 2.2); // half-diameter in px
+  // Real cotton embroidery thread is matte — very subtle shading, not shiny.
+  // Thread half-radius: thin enough to see individual stitches but packed tightly.
+  const threadR = Math.max(1.0, scale * 1.5); // half-diameter in px
 
-  // Draw one stitch (A→B) as a filled pill with a cylindrical gradient
+  // Draw one stitch (A→B) as a filled rotated rectangle.
+  // Gradient is perpendicular to the stitch — matte cylinder look (low contrast).
   function drawThread(x1:number,y1:number,x2:number,y2:number,color:string) {
     const dx = x2-x1, dy = y2-y1;
     const len = Math.hypot(dx, dy);
     if (len < 0.3) return;
-    const ux = dx/len, uy = dy/len;   // along stitch
-    const px = -uy,   py = ux;        // perpendicular (thread width direction)
+    const ux = dx/len, uy = dy/len;
+    const px = -uy, py = ux;
     const r = threadR;
-    const ext = Math.min(r * 0.6, 2); // slight cap extension to close gaps
+    const ext = Math.min(r * 0.5, 1.5);
 
-    // Perpendicular gradient: shadow edge → body → bright highlight → body → shadow
+    // Subtle matte gradient — shadow at edges, barely brighter at centre.
+    // Real cotton: ~30–40 units spread (NOT the 140-unit "plastic" look).
     const mx = (x1+x2)/2, my = (y1+y2)/2;
     const grad = ctx.createLinearGradient(
-      mx + px*r, my + py*r,   // one edge
-      mx - px*r, my - py*r    // other edge
+      mx + px*r, my + py*r,
+      mx - px*r, my - py*r
     );
-    grad.addColorStop(0,    shadeHex(color, -65));
-    grad.addColorStop(0.20, shadeHex(color, -20));
-    grad.addColorStop(0.42, shadeHex(color,  75));  // highlight peak
-    grad.addColorStop(0.62, shadeHex(color,  -5));
-    grad.addColorStop(1,    shadeHex(color, -65));
+    grad.addColorStop(0,    shadeHex(color, -38));
+    grad.addColorStop(0.30, shadeHex(color,  -8));
+    grad.addColorStop(0.50, shadeHex(color,  22));  // gentle highlight
+    grad.addColorStop(0.70, shadeHex(color,  -5));
+    grad.addColorStop(1,    shadeHex(color, -38));
 
-    // Filled rotated rectangle (the stitch shape)
     ctx.beginPath();
     ctx.moveTo(x1 - ux*ext + px*r,  y1 - uy*ext + py*r);
     ctx.lineTo(x2 + ux*ext + px*r,  y2 + uy*ext + py*r);
