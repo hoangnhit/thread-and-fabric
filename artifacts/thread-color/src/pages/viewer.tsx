@@ -223,19 +223,41 @@ function renderDesign(
     }
   }
 
+  // Small-jump threshold in stitch units (3mm = 30 units; jumps shorter than this
+  // are bridged so the thread looks continuous rather than broken into segments)
+  const BRIDGE_THRESHOLD = 30;
+
   for (const seg of segments) {
     const color = colors[seg.ci] ?? colors[seg.ci%colors.length] ?? "#ffffff";
     ctx.beginPath();
     ctx.strokeStyle = color;
-    ctx.lineWidth = Math.max(0.4, scale*0.7);
+    ctx.lineWidth = Math.max(1.2, scale * 1.0);
     ctx.lineCap = "round"; ctx.lineJoin = "round";
+
     let penDown = false;
-    for (let i=seg.start; i<=seg.end && i<=limit; i++) {
-      const s=stitches[i];
-      if (s.type==="STITCH") {
-        const sx=toSX(s.x), sy=toSY(s.y);
-        if (!penDown) { ctx.moveTo(sx,sy); penDown=true; } else ctx.lineTo(sx,sy);
-      } else { penDown=false; if (i<stitches.length) ctx.moveTo(toSX(s.x),toSY(s.y)); }
+    let lastRawX = 0, lastRawY = 0; // stitch-unit coords of last drawn point
+
+    for (let i = seg.start; i <= seg.end && i <= limit; i++) {
+      const s = stitches[i];
+      const sx = toSX(s.x), sy = toSY(s.y);
+
+      if (s.type === "STITCH") {
+        if (!penDown) { ctx.moveTo(sx, sy); penDown = true; }
+        else ctx.lineTo(sx, sy);
+        lastRawX = s.x; lastRawY = s.y;
+      } else if (s.type === "JUMP") {
+        // Bridge small jumps so thread looks continuous
+        const jumpDist = Math.hypot(s.x - lastRawX, s.y - lastRawY);
+        if (penDown && jumpDist < BRIDGE_THRESHOLD) {
+          // Small jump — just moveTo (no line drawn, but pen stays logically down
+          // so next STITCH will connect from here)
+          ctx.moveTo(sx, sy);
+        } else {
+          penDown = false;
+        }
+        lastRawX = s.x; lastRawY = s.y;
+      }
+      // COLOR_CHANGE ends this segment, handled by outer loop
     }
     ctx.stroke();
   }
