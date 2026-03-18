@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "App Launcher"
+version = "1.0.0"
+id = "artifacts/app-launcher"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+localPort = 24665
+name = "web"
+paths = ["/"]
+
+[services.development]
+run = "pnpm --filter @workspace/app-launcher run dev"
+
+[services.env]
+PORT = "24665"
+BASE_PATH = "/"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/app-launcher", "run", "build"]
+publicDir = "artifacts/app-launcher/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
