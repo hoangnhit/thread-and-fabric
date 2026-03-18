@@ -438,52 +438,48 @@ function renderDesign(
 
   const BRIDGE_THRESHOLD = 30; // stitch units (~3mm)
 
-  // Per-stitch linear gradient PERPENDICULAR to stitch direction.
-  // Models a cylinder lit from one side: shadow → true color → highlight → true → shadow.
-  // Proportional (multiplicative) shading so dark thread keeps its hue in shadow.
-  // Moderate contrast (0.58× shadow / 1.28× highlight) — matches real #40 polyester
-  // thread at standard embroidery viewing distance. No inner grooves, no extra passes.
-  // lineWidth = scale × 3.5 → ~0.35 mm, close to real thread diameter in DST/PES units.
-  const lw = Math.max(1.5, scale * 3.5);
+  // ─── Thread renderer — stitchcount.app technique ─────────────────
+  // Radial gradient centered at the MIDPOINT of each stitch:
+  //   bright at center  →  true color  →  slight shadow at round caps
+  // This "fiber glow" is exactly what real embroidery looks like:
+  //   ∙ Satin areas → all stitches bright in middle → uniform sheen band
+  //   ∙ Fill areas  → stitch centers form a corrugated texture
+  //   ∙ Round caps  → appear slightly darker, bounding each stitch clearly
+  //
+  // lineWidth clamped [2, 9] px at canvas-pixel scale:
+  //   scale × 5  gives ~0.5 mm thread — fills design area like real embroidery.
+  const lw = Math.max(2, Math.min(9, scale * 5));
   ctx.lineWidth = lw;
-  ctx.lineCap = "round";
+  ctx.lineCap  = "round";
   ctx.lineJoin = "round";
 
-  // Multiply RGB channels proportionally — preserves hue unlike additive shadeHex.
+  // Proportional RGB multiply — preserves hue in dark shadows.
   function tc(hex: string, f: number): string {
     const n = parseInt(hex.replace("#","").padEnd(6,"0").slice(0,6), 16);
-    const c = (v:number) => Math.max(0,Math.min(255,Math.round(v)));
-    return `#${c(((n>>16)&0xff)*f).toString(16).padStart(2,"0")}${c(((n>>8)&0xff)*f).toString(16).padStart(2,"0")}${c((n&0xff)*f).toString(16).padStart(2,"0")}`;
+    const q = (v:number) => Math.max(0,Math.min(255,Math.round(v)));
+    return `#${q(((n>>16)&0xff)*f).toString(16).padStart(2,"0")}${q(((n>>8)&0xff)*f).toString(16).padStart(2,"0")}${q((n&0xff)*f).toString(16).padStart(2,"0")}`;
   }
 
   function drawThread(x1:number,y1:number,x2:number,y2:number,color:string) {
     const dx = x2-x1, dy = y2-y1;
     const len = Math.hypot(dx, dy);
-    if (len < 0.2) return;
+    if (len < 0.3) return;
 
-    // Unit vector perpendicular to stitch direction
-    const nx = -dy/len, ny = dx/len;
-    const hw = lw * 0.5;
+    // Radial gradient from stitch MIDPOINT outward to just past stitch ends.
+    // r = len × 0.62 so at each round cap (distance len/2 from center)
+    // gradient position = 0.81 → interpolating between stop 0.55 and 1.0
+    // → cap color = tc(color, 0.73) — slightly darker than true, not black.
     const mx = (x1+x2)*0.5, my = (y1+y2)*0.5;
+    const r  = len * 0.62;
+    const g  = ctx.createRadialGradient(mx, my, 0, mx, my, r);
+    g.addColorStop(0,    tc(color, 1.38)); // highlight at stitch center
+    g.addColorStop(0.55, color);           // true color
+    g.addColorStop(1,    tc(color, 0.70)); // shadow at stitch ends / caps
 
-    // Smooth 5-stop cylindrical gradient across thread width:
-    //  edge shadow → true color → highlight → true color → edge shadow
-    // The gradient rotates with stitch angle, so adjacent fill stitches catch
-    // light from different angles — creating natural textile variation.
-    const g = ctx.createLinearGradient(
-      mx - nx*hw, my - ny*hw,
-      mx + nx*hw, my + ny*hw
-    );
-    g.addColorStop(0,    tc(color, 0.58)); // shadow edge
-    g.addColorStop(0.30, color);           // true color
-    g.addColorStop(0.50, tc(color, 1.28)); // highlight center
-    g.addColorStop(0.70, color);           // true color
-    g.addColorStop(1,    tc(color, 0.58)); // shadow edge
-
+    ctx.strokeStyle = g;
     ctx.beginPath();
     ctx.moveTo(x1, y1);
     ctx.lineTo(x2, y2);
-    ctx.strokeStyle = g;
     ctx.stroke();
   }
 
