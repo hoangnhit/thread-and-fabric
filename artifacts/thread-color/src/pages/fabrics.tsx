@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 
 interface FabricItem {
-  id: string;
+  id: number;
   name: string;
-  image: string; // base64 or data URL
+  image: string;
 }
 
-const STORAGE_KEY = "gingko-fabric-catalog";
+const API = "/api";
 
 /* ─── PRESET SOLID COLORS ────────────────────────────────────────── */
 const PRESET_COLORS = [
@@ -48,21 +48,9 @@ function colorToDataUrl(hex: string, name: string): string {
   return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
 }
 
-function loadFabrics(): FabricItem[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveFabrics(items: FabricItem[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-}
-
 export default function Fabrics() {
-  const [fabrics, setFabrics] = useState<FabricItem[]>(loadFabrics);
+  const [fabrics, setFabrics] = useState<FabricItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [addTab, setAddTab] = useState<"photo" | "color">("color");
   const [newName, setNewName] = useState("");
@@ -72,14 +60,46 @@ export default function Fabrics() {
   const [urlInput, setUrlInput] = useState("");
   const [urlError, setUrlError] = useState("");
   const [search, setSearch] = useState("");
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [editId, setEditId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [editId, setEditId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const [zoomItem, setZoomItem] = useState<FabricItem | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { saveFabrics(fabrics); }, [fabrics]);
+  const fetchFabrics = async () => {
+    try {
+      const res = await fetch(`${API}/fabrics`);
+      const data: FabricItem[] = await res.json();
+      setFabrics(data);
+
+      if (data.length === 0) {
+        const OLD_KEY = "gingko-fabric-catalog";
+        const raw = localStorage.getItem(OLD_KEY);
+        if (raw) {
+          const old: { id: string; name: string; image: string }[] = JSON.parse(raw);
+          if (old.length > 0) {
+            await Promise.all(old.map(item =>
+              fetch(`${API}/fabrics`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: item.name, image: item.image }),
+              })
+            ));
+            localStorage.removeItem(OLD_KEY);
+            const res2 = await fetch(`${API}/fabrics`);
+            setFabrics(await res2.json());
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load fabrics", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchFabrics(); }, []);
 
   const handleFileSelect = (file: File) => {
     if (!file.type.startsWith("image/")) return;
@@ -114,41 +134,56 @@ export default function Fabrics() {
     setNewImageFileName("link ảnh");
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     const resolvedImage = addTab === "color"
       ? colorToDataUrl(pickerHex, newName.trim() || pickerHex)
       : newImage;
     if (!newName.trim() || !resolvedImage) return;
-    const item: FabricItem = {
-      id: Date.now().toString(),
-      name: newName.trim(),
-      image: resolvedImage,
-    };
-    setFabrics(prev => [item, ...prev]);
+    try {
+      const res = await fetch(`${API}/fabrics`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName.trim(), image: resolvedImage }),
+      });
+      const item: FabricItem = await res.json();
+      setFabrics(prev => [...prev, item]);
+    } catch (e) { console.error(e); }
     resetAddForm();
   };
 
-  const handleAddPresets = () => {
+  const handleAddPresets = async () => {
     const existing = new Set(fabrics.map(f => f.name.toLowerCase()));
-    const toAdd: FabricItem[] = PRESET_COLORS
-      .filter(p => !existing.has(p.name.toLowerCase()))
-      .map((p, i) => ({
-        id: `preset-${Date.now()}-${i}`,
-        name: p.name,
-        image: colorToDataUrl(p.hex, p.name),
-      }));
+    const toAdd = PRESET_COLORS.filter(p => !existing.has(p.name.toLowerCase()));
     if (toAdd.length === 0) return;
-    setFabrics(prev => [...prev, ...toAdd]);
+    const results = await Promise.all(toAdd.map(p =>
+      fetch(`${API}/fabrics`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: p.name, image: colorToDataUrl(p.hex, p.name) }),
+      }).then(r => r.json())
+    ));
+    setFabrics(prev => [...prev, ...results]);
   };
 
-  const handleDelete = (id: string) => {
-    setFabrics(prev => prev.filter(f => f.id !== id));
+  const handleDelete = async (id: number) => {
+    try {
+      await fetch(`${API}/fabrics/${id}`, { method: "DELETE" });
+      setFabrics(prev => prev.filter(f => f.id !== id));
+    } catch (e) { console.error(e); }
     setDeleteId(null);
   };
 
-  const handleEdit = (id: string) => {
+  const handleEdit = async (id: number) => {
     if (!editName.trim()) return;
-    setFabrics(prev => prev.map(f => f.id === id ? { ...f, name: editName.trim() } : f));
+    try {
+      const res = await fetch(`${API}/fabrics/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editName.trim() }),
+      });
+      const updated: FabricItem = await res.json();
+      setFabrics(prev => prev.map(f => f.id === id ? updated : f));
+    } catch (e) { console.error(e); }
     setEditId(null);
     setEditName("");
   };
@@ -401,7 +436,13 @@ export default function Fabrics() {
 
       {/* Fabric grid */}
       <main style={{ maxWidth: 640, margin: "20px auto 40px", padding: "0 16px" }}>
-        {filtered.length === 0 && (
+        {loading && (
+          <div style={{ textAlign: "center", padding: "48px 20px", color: "#9ca3af" }}>
+            <div style={{ fontSize: 32, marginBottom: 10, animation: "spin 1s linear infinite" }}>⏳</div>
+            <div style={{ fontSize: 14 }}>Đang tải danh mục vải...</div>
+          </div>
+        )}
+        {!loading && filtered.length === 0 && (
           <div style={{ textAlign: "center", padding: "48px 20px", color: "#9ca3af" }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>🎨</div>
             <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6, color: "#6b7280" }}>
