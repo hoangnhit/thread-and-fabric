@@ -75,6 +75,7 @@ export default function Fabrics() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [zoomItem, setZoomItem] = useState<FabricItem | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
 
@@ -419,9 +420,18 @@ export default function Fabrics() {
               boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
               overflow: "hidden", position: "relative",
             }}>
-              {/* Swatch image */}
-              <div style={{ width: "100%", aspectRatio: "4/3", overflow: "hidden", background: "#f1f5f9" }}>
+              {/* Swatch image — tap to zoom */}
+              <div
+                onClick={() => setZoomItem(f)}
+                style={{ width: "100%", aspectRatio: "4/3", overflow: "hidden", background: "#f1f5f9", cursor: "zoom-in", position: "relative" }}
+              >
                 <img src={f.image} alt={f.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                <div style={{
+                  position: "absolute", bottom: 6, right: 6,
+                  background: "rgba(0,0,0,0.35)", borderRadius: 6,
+                  padding: "2px 6px", fontSize: 11, color: "white", fontWeight: 600,
+                  backdropFilter: "blur(4px)",
+                }}>🔍</div>
               </div>
 
               {/* Name */}
@@ -465,6 +475,67 @@ export default function Fabrics() {
       <div style={{ textAlign: "center", padding: "20px 16px", borderTop: "1px solid #e5e7eb", background: "white", fontSize: 12, color: "#9ca3af" }}>
         Gingko Brand High-Grade Embroidery Thread · 100% Polyester
       </div>
+
+      {/* ── ZOOM LIGHTBOX ── */}
+      {zoomItem && (
+        <div
+          onClick={() => setZoomItem(null)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 999,
+            background: "rgba(0,0,0,0.88)",
+            display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center",
+            padding: 16, cursor: "zoom-out",
+          }}
+        >
+          {/* Close hint */}
+          <div style={{
+            position: "absolute", top: 16, right: 16,
+            background: "rgba(255,255,255,0.15)", borderRadius: 8,
+            padding: "6px 12px", fontSize: 13, color: "white", fontWeight: 600,
+          }}>✕ Đóng</div>
+
+          {/* Large image */}
+          <img
+            src={zoomItem.image}
+            alt={zoomItem.name}
+            onClick={e => e.stopPropagation()}
+            style={{
+              maxWidth: "100%", maxHeight: "80vh",
+              borderRadius: 16,
+              boxShadow: "0 8px 48px rgba(0,0,0,0.6)",
+              objectFit: "contain",
+            }}
+          />
+
+          {/* Name label */}
+          <div style={{
+            marginTop: 18, fontSize: 17, fontWeight: 800,
+            color: "white", textAlign: "center",
+            textShadow: "0 2px 8px rgba(0,0,0,0.5)",
+          }}>{zoomItem.name}</div>
+
+          {/* Action buttons */}
+          <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+            <button
+              onClick={e => { e.stopPropagation(); setEditId(zoomItem.id); setEditName(zoomItem.name); setZoomItem(null); }}
+              style={{
+                padding: "8px 18px", borderRadius: 10, border: "none",
+                background: "rgba(255,255,255,0.18)", color: "white",
+                fontSize: 13, fontWeight: 700, cursor: "pointer",
+              }}
+            >✏️ Sửa tên</button>
+            <button
+              onClick={e => { e.stopPropagation(); setDeleteId(zoomItem.id); setZoomItem(null); }}
+              style={{
+                padding: "8px 18px", borderRadius: 10, border: "none",
+                background: "rgba(220,38,38,0.65)", color: "white",
+                fontSize: 13, fontWeight: 700, cursor: "pointer",
+              }}
+            >🗑️ Xoá</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
