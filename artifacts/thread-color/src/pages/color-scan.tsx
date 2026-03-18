@@ -54,8 +54,7 @@ function sampleCanvasArea(
   for (let i = 0; i < d.length; i += 4) {
     const pr = d[i], pg = d[i + 1], pb = d[i + 2];
     const brightness = (pr + pg + pb) / 3;
-    if (brightness < 25) continue;  // skip very dark pixels (shadows / underexposed)
-    if (brightness > 235) continue; // skip very bright pixels (specular reflection)
+    if (brightness > 245) continue; // skip only pure specular white (blown-out highlights)
     r += pr; g += pg; b += pb; count++;
   }
   if (count === 0) {
