@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -41,24 +42,39 @@ function MoonIcon() {
 
 function ThemeToggle() {
   const { isDark, toggle } = useTheme();
+  const [hovered, setHovered] = useState(false);
+
   return (
-    <button
-      onClick={toggle}
-      title={isDark ? "Chuyển sang chế độ sáng" : "Chuyển sang chế độ tối"}
-      style={{
-        position: "fixed", top: 14, right: 14, zIndex: 9999,
-        background: "rgba(120,120,120,0.28)", backdropFilter: "blur(6px)",
-        border: "1px solid rgba(255,255,255,0.18)",
-        borderRadius: "50%", cursor: "pointer",
-        padding: 5, lineHeight: 0,
-        boxShadow: "0 2px 10px rgba(0,0,0,0.22)",
-        transition: "transform 0.2s, background 0.2s",
-      }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "scale(1.12)"; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = "scale(1)"; }}
-    >
-      {isDark ? <SunIcon /> : <MoonIcon />}
-    </button>
+    <div style={{ position: "fixed", top: 14, right: 14, zIndex: 9999, display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+      <button
+        onClick={toggle}
+        style={{
+          background: "rgba(120,120,120,0.28)", backdropFilter: "blur(6px)",
+          border: "1px solid rgba(255,255,255,0.18)",
+          borderRadius: "50%", cursor: "pointer",
+          padding: 5, lineHeight: 0,
+          boxShadow: "0 2px 10px rgba(0,0,0,0.22)",
+          transition: "transform 0.2s",
+          transform: hovered ? "scale(1.12)" : "scale(1)",
+        }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
+        {isDark ? <SunIcon /> : <MoonIcon />}
+      </button>
+      <div style={{
+        fontSize: 11, fontWeight: 700, letterSpacing: "0.04em",
+        color: "white", textShadow: "0 1px 4px rgba(0,0,0,0.7)",
+        opacity: hovered ? 1 : 0,
+        transform: hovered ? "translateY(0)" : "translateY(-4px)",
+        transition: "opacity 0.18s, transform 0.18s",
+        pointerEvents: "none", whiteSpace: "nowrap",
+        background: "rgba(0,0,0,0.45)", borderRadius: 6,
+        padding: "2px 8px", backdropFilter: "blur(4px)",
+      }}>
+        {isDark ? "Sáng" : "Tối"}
+      </div>
+    </div>
   );
 }
 
