@@ -237,10 +237,12 @@ export default function Fabrics() {
 
       {/* Header */}
       <div style={{
-        background: "linear-gradient(160deg, #064e3b 0%, #065f46 40%, #059669 100%)",
+        backgroundImage: "url(https://i.pinimg.com/736x/7b/ff/14/7bff148d3a7ce0c7d9efabd332745075.jpg)",
+        backgroundSize: "cover", backgroundPosition: "center",
         padding: "28px 20px 48px", position: "relative", overflow: "hidden",
       }}>
-        <div style={{ position: "absolute", top: -40, right: -40, width: 180, height: 180, borderRadius: "50%", background: "rgba(255,255,255,0.04)" }} />
+        <div style={{ position: "absolute", inset: 0, background: "rgba(4,20,12,0.62)", zIndex: 0 }} />
+        <div style={{ position: "absolute", top: -40, right: -40, width: 180, height: 180, borderRadius: "50%", background: "rgba(255,255,255,0.04)", zIndex: 0 }} />
         <div style={{ maxWidth: 640, margin: "0 auto", position: "relative", zIndex: 1, textAlign: "center" }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.12)", borderRadius: 20, padding: "4px 14px", marginBottom: 14, fontSize: 11, color: "rgba(255,255,255,0.85)", letterSpacing: "0.1em", fontWeight: 700 }}>
             🎩 THIÊN ĐỨC HATS
