@@ -356,43 +356,24 @@ export default function Home() {
               />
 
               {scanCodes.length > 0 && (
-                <div style={{ marginTop: 12 }}>
+                <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {scanFound.length > 0 && (
-                    <div style={{ marginBottom: 8 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: "#059669", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                        ✅ Tìm thấy {scanFound.length}/{scanCodes.length} mã
-                      </div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {scanFound.map((h, i) => (
-                          <span
-                            key={i}
-                            onClick={() => scrollToCode(h)}
-                            title={`Cột ${h.col} · Hàng ${h.row + 1} — Bấm để xem`}
-                            style={{
-                              background: focusedScan?.code === h.code ? "#fbbf24" : "#fef3c7",
-                              border: `1.5px solid ${focusedScan?.code === h.code ? "#d97706" : "#fde68a"}`,
-                              borderRadius: 8, padding: "4px 12px",
-                              fontSize: 12, fontWeight: 700, color: "#92400e",
-                              fontFamily: "monospace", cursor: "pointer",
-                              transition: "all 0.15s",
-                              display: "inline-flex", alignItems: "center", gap: 4,
-                            }}
-                          >
-                            {h.code}
-                            <span style={{ fontSize: 10, opacity: 0.6 }}>↓</span>
-                          </span>
-                        ))}
-                      </div>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#f0fdf4", border: "1.5px solid #86efac", borderRadius: 10, padding: "7px 12px" }}>
+                      <span style={{ fontSize: 15 }}>✅</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "#15803d" }}>
+                        {scanFound.length} mã tìm thấy
+                      </span>
+                      <span style={{ fontSize: 11, color: "#6b7280" }}>→ xem danh sách bên phải</span>
                     </div>
                   )}
                   {scanMissed.length > 0 && (
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: "#dc2626", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                        ❌ Không có trong bảng ({scanMissed.length} mã)
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "#dc2626", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                        ❌ Không có trong bảng
                       </div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
                         {scanMissed.map((c, i) => (
-                          <span key={i} style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "3px 10px", fontSize: 12, fontWeight: 600, color: "#dc2626", fontFamily: "monospace" }}>
+                          <span key={i} style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 7, padding: "3px 9px", fontSize: 11, fontWeight: 600, color: "#dc2626", fontFamily: "monospace" }}>
                             {c}
                           </span>
                         ))}
@@ -458,6 +439,63 @@ export default function Home() {
           );
         })}
       </main>
+
+      {/* ── FLOATING PANEL: found codes in scan mode ── */}
+      {mode === "scan" && scanFound.length > 0 && (
+        <div style={{
+          position: "fixed", right: 10, top: "50%", transform: "translateY(-50%)",
+          width: 86, zIndex: 50,
+          background: "white",
+          borderRadius: 14,
+          boxShadow: "0 8px 28px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.1)",
+          border: "1.5px solid #e5e7eb",
+          display: "flex", flexDirection: "column",
+          maxHeight: "70vh", overflow: "hidden",
+        }}>
+          {/* header */}
+          <div style={{
+            padding: "8px 6px 6px", textAlign: "center",
+            borderBottom: "1px solid #f1f5f9",
+            background: "#f0fdf4",
+            borderRadius: "12px 12px 0 0",
+          }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: "#059669", letterSpacing: "0.04em" }}>✅ {scanFound.length} MÃ</div>
+            <div style={{ fontSize: 9, color: "#9ca3af", marginTop: 1 }}>Bấm để xem</div>
+          </div>
+          {/* scrollable list */}
+          <div style={{ overflow: "auto", padding: "6px 5px", display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
+            {scanFound.map((h, i) => {
+              const isSelected = focusedScan?.code === h.code;
+              return (
+                <button
+                  key={i}
+                  onClick={() => scrollToCode(h)}
+                  title={`Cột ${h.col} · Hàng ${h.row + 1}`}
+                  style={{
+                    border: "1.5px solid",
+                    borderColor: isSelected ? "#059669" : "#fde68a",
+                    borderRadius: 8,
+                    padding: "5px 3px",
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    fontFamily: "monospace",
+                    cursor: "pointer",
+                    background: isSelected ? "#059669" : "#fef3c7",
+                    color: isSelected ? "white" : "#92400e",
+                    textAlign: "center",
+                    transition: "all 0.18s",
+                    width: "100%",
+                    lineHeight: 1.3,
+                    wordBreak: "break-all",
+                  }}
+                >
+                  {h.code}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div style={{ textAlign: "center", padding: "20px 16px", borderTop: "1px solid #e5e7eb", background: "white", fontSize: 12, color: "#9ca3af" }}>
         Gingko Brand High-Grade Embroidery Thread · 100% Polyester
