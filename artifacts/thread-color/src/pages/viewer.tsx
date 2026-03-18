@@ -819,7 +819,7 @@ export default function Viewer() {
         {design ? (
           <>
             {/* Preview + Info row */}
-            <div style={{display:"flex",gap:14,width:"100%",maxWidth:920,alignItems:"flex-start"}}>
+            <div style={{display:"flex",gap:14,width:"100%",maxWidth:1200,alignItems:"flex-start"}}>
 
               {/* Preview canvas */}
               <div style={{flex:"1 1 0",minWidth:0,position:"relative"}}>
@@ -831,7 +831,7 @@ export default function Viewer() {
                 </div>
 
                 {/* Canvas area */}
-                <div style={{position:"relative",borderRadius:10,overflow:"hidden",background:fabricBgColor,aspectRatio:"4/3",
+                <div style={{position:"relative",borderRadius:10,overflow:"hidden",background:fabricBgColor,aspectRatio:"16/9",
                   boxShadow:"0 4px 24px rgba(0,0,0,0.6)",border:"1px solid #1e2436"}}>
 
                   {/* Play / Step buttons */}
