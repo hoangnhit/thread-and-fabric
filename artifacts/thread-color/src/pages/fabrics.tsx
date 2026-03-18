@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
+import { useTheme, mkTheme } from "@/contexts/ThemeContext";
 
 interface FabricItem {
   id: number;
@@ -50,6 +51,8 @@ function colorToDataUrl(hex: string, name: string): string {
 }
 
 export default function Fabrics() {
+  const { isDark, toggle: toggleTheme } = useTheme();
+  const t = mkTheme(isDark);
   const [, navigate] = useLocation();
   const [fabrics, setFabrics] = useState<FabricItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -218,7 +221,7 @@ export default function Fabrics() {
     borderBottom: active ? `2.5px solid ${color}` : "2.5px solid transparent",
     marginBottom: -1, cursor: "pointer",
     fontSize: 13, fontWeight: active ? 700 : 500,
-    color: active ? color : "#9ca3af",
+    color: active ? color : t.muted,
     background: "transparent", transition: "all 0.15s",
     whiteSpace: "nowrap" as const,
   });
@@ -226,14 +229,14 @@ export default function Fabrics() {
   const subPill = (active: boolean, color = "#059669") => ({
     padding: "5px 14px", borderRadius: 20, cursor: "pointer",
     fontSize: 12, fontWeight: 600,
-    border: `1.5px solid ${active ? color : "#e5e7eb"}`,
-    background: active ? color : "white",
-    color: active ? "white" : "#6b7280",
+    border: `1.5px solid ${active ? color : t.border}`,
+    background: active ? color : t.card,
+    color: active ? "white" : t.text2,
     transition: "all 0.15s", whiteSpace: "nowrap" as const,
   });
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f8fafc", fontFamily: "'Segoe UI', system-ui, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: t.bg, fontFamily: "'Segoe UI', system-ui, sans-serif" }}>
 
       {/* Header */}
       <div style={{
@@ -259,10 +262,10 @@ export default function Fabrics() {
 
       {/* Nav links */}
       <div style={{ maxWidth: 640, margin: "-28px auto 0", padding: "0 16px", position: "relative", zIndex: 10 }}>
-        <div style={{ background: "white", borderRadius: 20, padding: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.13)" }}>
+        <div style={{ background: t.card, borderRadius: 20, padding: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.13)" }}>
 
           {/* Tier 1 — main nav tabs */}
-          <div style={{ display: "flex", borderBottom: "1px solid #e5e7eb", marginBottom: 14 }}>
+          <div style={{ display: "flex", borderBottom: `1px solid ${t.border}`, marginBottom: 14, alignItems: "center" }}>
             <button onClick={() => navigate("/")} style={mainTab(false, "#059669")}>
               🧵 Danh mục màu chỉ
             </button>
@@ -272,6 +275,11 @@ export default function Fabrics() {
             <button onClick={() => navigate("/viewer")} style={mainTab(false, "#6d28d9")}>
               📁 File thêu
             </button>
+            <button
+              onClick={toggleTheme}
+              title={isDark ? "Chế độ sáng" : "Chế độ tối"}
+              style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 17, padding: "4px 6px", marginLeft: 2, marginBottom: -1, lineHeight: 1 }}
+            >{isDark ? "☀️" : "🌙"}</button>
           </div>
 
           {/* Tier 2 — fabric sub-actions */}
@@ -282,9 +290,10 @@ export default function Fabrics() {
                 onChange={e => setSearch(e.target.value)}
                 placeholder="🔍 Tìm tên vải..."
                 style={{
-                  width: "100%", border: "1.5px solid #e5e7eb", borderRadius: 20,
+                  width: "100%", border: `1.5px solid ${t.border}`, borderRadius: 20,
                   padding: "5px 14px", fontSize: 12, outline: "none",
-                  fontFamily: "inherit", boxSizing: "border-box", color: "#374151",
+                  fontFamily: "inherit", boxSizing: "border-box", color: t.text,
+                  background: t.inputBg,
                 }}
               />
             </div>
@@ -311,21 +320,21 @@ export default function Fabrics() {
             }}
               onClick={e => { if (e.target === e.currentTarget) resetAddForm(); }}
             >
-              <div style={{ background: "white", borderRadius: 20, padding: 24, width: "100%", maxWidth: 380, boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
-                <h3 style={{ margin: "0 0 14px", fontSize: 17, fontWeight: 800, color: "#111" }}>➕ Thêm mẫu vải</h3>
+              <div style={{ background: t.card, borderRadius: 20, padding: 24, width: "100%", maxWidth: 380, boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
+                <h3 style={{ margin: "0 0 14px", fontSize: 17, fontWeight: 800, color: t.text }}>➕ Thêm mẫu vải</h3>
 
                 {/* Tab switcher */}
-                <div style={{ display: "flex", background: "#f3f4f6", borderRadius: 10, padding: 3, marginBottom: 16 }}>
-                  {(["color", "photo"] as const).map(t => (
-                    <button key={t} onClick={() => setAddTab(t)} style={{
+                <div style={{ display: "flex", background: t.seg, borderRadius: 10, padding: 3, marginBottom: 16 }}>
+                  {(["color", "photo"] as const).map(tab => (
+                    <button key={tab} onClick={() => setAddTab(tab)} style={{
                       flex: 1, padding: "7px", border: "none", borderRadius: 8, cursor: "pointer",
                       fontWeight: 700, fontSize: 13,
-                      background: addTab === t ? "white" : "transparent",
-                      color: addTab === t ? "#059669" : "#6b7280",
-                      boxShadow: addTab === t ? "0 1px 4px rgba(0,0,0,0.1)" : "none",
+                      background: addTab === tab ? t.segActive : "transparent",
+                      color: addTab === tab ? "#059669" : t.text2,
+                      boxShadow: addTab === tab ? "0 1px 4px rgba(0,0,0,0.1)" : "none",
                       transition: "all 0.15s",
                     }}>
-                      {t === "color" ? "🎨 Chọn màu" : "📷 Upload ảnh"}
+                      {tab === "color" ? "🎨 Chọn màu" : "📷 Upload ảnh"}
                     </button>
                   ))}
                 </div>
@@ -336,7 +345,7 @@ export default function Fabrics() {
                     <div style={{
                       borderRadius: 12, height: 110, marginBottom: 10,
                       background: pickerHex,
-                      border: "1.5px solid #e5e7eb",
+                      border: `1.5px solid ${t.border}`,
                       display: "flex", alignItems: "center", justifyContent: "center",
                     }}>
                       <span style={{
@@ -350,7 +359,7 @@ export default function Fabrics() {
                       value={pickerHex}
                       onChange={e => setPickerHex(e.target.value)}
                       style={{
-                        width: "100%", height: 42, border: "1.5px solid #e5e7eb",
+                        width: "100%", height: 42, border: `1.5px solid ${t.border}`,
                         borderRadius: 10, cursor: "pointer", padding: 2,
                       }}
                     />
@@ -376,13 +385,13 @@ export default function Fabrics() {
                       {newImage ? (
                         <>
                           <img src={newImage} alt="preview" style={{ maxHeight: 90, maxWidth: "100%", borderRadius: 10, objectFit: "cover" }} />
-                          <div style={{ fontSize: 11, color: "#6b7280" }}>{newImageFileName}</div>
+                          <div style={{ fontSize: 11, color: t.text2 }}>{newImageFileName}</div>
                         </>
                       ) : (
                         <>
                           <div style={{ fontSize: 32 }}>📷</div>
                           <div style={{ fontSize: 13, fontWeight: 600, color: "#059669" }}>Bấm hoặc kéo ảnh vào đây</div>
-                          <div style={{ fontSize: 11, color: "#9ca3af" }}>JPG, PNG, WEBP</div>
+                          <div style={{ fontSize: 11, color: t.muted }}>JPG, PNG, WEBP</div>
                         </>
                       )}
                     </div>
@@ -390,7 +399,7 @@ export default function Fabrics() {
 
                     {/* URL input */}
                     <div style={{ marginBottom: 14 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", marginBottom: 6 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: t.text2, marginBottom: 6 }}>
                         🔗 Hoặc dán link ảnh
                       </div>
                       <div style={{ display: "flex", gap: 6 }}>
@@ -400,9 +409,10 @@ export default function Fabrics() {
                           onKeyDown={e => e.key === "Enter" && handleApplyUrl()}
                           placeholder="https://example.com/anh-vai.jpg"
                           style={{
-                            flex: 1, border: `1.5px solid ${urlError ? "#ef4444" : "#e5e7eb"}`,
+                            flex: 1, border: `1.5px solid ${urlError ? "#ef4444" : t.border}`,
                             borderRadius: 8, padding: "8px 10px", fontSize: 12,
                             outline: "none", fontFamily: "inherit", minWidth: 0,
+                            background: t.inputBg, color: t.text,
                           }}
                         />
                         <button
@@ -426,9 +436,10 @@ export default function Fabrics() {
                   onKeyDown={e => e.key === "Enter" && handleAdd()}
                   placeholder="Tên màu vải (VD: Powder Blue, True Red...)"
                   style={{
-                    width: "100%", border: "1.5px solid #e5e7eb", borderRadius: 10,
+                    width: "100%", border: `1.5px solid ${t.border}`, borderRadius: 10,
                     padding: "10px 12px", fontSize: 14, outline: "none",
                     fontFamily: "inherit", boxSizing: "border-box", marginBottom: 16,
+                    background: t.inputBg, color: t.text,
                   }}
                   autoFocus
                 />
@@ -436,7 +447,7 @@ export default function Fabrics() {
                 <div style={{ display: "flex", gap: 10 }}>
                   <button
                     onClick={resetAddForm}
-                    style={{ flex: 1, padding: "10px", border: "1.5px solid #e5e7eb", borderRadius: 10, background: "white", cursor: "pointer", fontSize: 14, fontWeight: 600, color: "#6b7280" }}
+                    style={{ flex: 1, padding: "10px", border: `1.5px solid ${t.border}`, borderRadius: 10, background: t.card, cursor: "pointer", fontSize: 14, fontWeight: 600, color: t.text2 }}
                   >Huỷ</button>
                   <button
                     onClick={handleAdd}
@@ -457,11 +468,11 @@ export default function Fabrics() {
           {/* Delete confirm */}
           {deleteId && (
             <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-              <div style={{ background: "white", borderRadius: 16, padding: 24, maxWidth: 300, textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
+              <div style={{ background: t.card, borderRadius: 16, padding: 24, maxWidth: 300, textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
                 <div style={{ fontSize: 32, marginBottom: 10 }}>🗑️</div>
-                <p style={{ margin: "0 0 18px", fontSize: 14, color: "#374151" }}>Xoá mẫu vải này khỏi danh sách?</p>
+                <p style={{ margin: "0 0 18px", fontSize: 14, color: t.text }}>Xoá mẫu vải này khỏi danh sách?</p>
                 <div style={{ display: "flex", gap: 10 }}>
-                  <button onClick={() => setDeleteId(null)} style={{ flex: 1, padding: "9px", border: "1.5px solid #e5e7eb", borderRadius: 10, background: "white", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#6b7280" }}>Huỷ</button>
+                  <button onClick={() => setDeleteId(null)} style={{ flex: 1, padding: "9px", border: `1.5px solid ${t.border}`, borderRadius: 10, background: t.card, cursor: "pointer", fontSize: 13, fontWeight: 600, color: t.text2 }}>Huỷ</button>
                   <button onClick={() => handleDelete(deleteId)} style={{ flex: 1, padding: "9px", border: "none", borderRadius: 10, background: "#dc2626", cursor: "pointer", fontSize: 13, fontWeight: 700, color: "white" }}>Xoá</button>
                 </div>
               </div>
@@ -473,15 +484,15 @@ export default function Fabrics() {
       {/* Fabric grid */}
       <main style={{ maxWidth: 640, margin: "20px auto 0", padding: `0 16px ${compareMode ? "100px" : "40px"}` }}>
         {loading && (
-          <div style={{ textAlign: "center", padding: "48px 20px", color: "#9ca3af" }}>
+          <div style={{ textAlign: "center", padding: "48px 20px", color: t.muted }}>
             <div style={{ fontSize: 32, marginBottom: 10, animation: "spin 1s linear infinite" }}>⏳</div>
             <div style={{ fontSize: 14 }}>Đang tải danh mục vải...</div>
           </div>
         )}
         {!loading && filtered.length === 0 && (
-          <div style={{ textAlign: "center", padding: "48px 20px", color: "#9ca3af" }}>
+          <div style={{ textAlign: "center", padding: "48px 20px", color: t.muted }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>🎨</div>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6, color: "#6b7280" }}>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6, color: t.text2 }}>
               {search ? "Không tìm thấy vải phù hợp" : "Chưa có mẫu vải nào"}
             </div>
             <div style={{ fontSize: 13 }}>
@@ -496,7 +507,7 @@ export default function Fabrics() {
             const selIdx = compareIds.indexOf(f.id);
             return (
             <div key={f.id} style={{
-              background: "white", borderRadius: 16,
+              background: t.card, borderRadius: 16,
               boxShadow: isSelected
                 ? `0 0 0 3px ${selIdx === 0 ? "#0ea5e9" : "#f59e0b"}, 0 2px 12px rgba(0,0,0,0.08)`
                 : "0 2px 12px rgba(0,0,0,0.08)",
@@ -506,7 +517,7 @@ export default function Fabrics() {
               {/* Swatch image */}
               <div
                 onClick={() => compareMode ? toggleCompare(f.id) : setZoomItem(f)}
-                style={{ width: "100%", aspectRatio: "4/3", overflow: "hidden", background: "#f1f5f9", cursor: compareMode ? "pointer" : "zoom-in", position: "relative" }}
+                style={{ width: "100%", aspectRatio: "4/3", overflow: "hidden", background: t.seg, cursor: compareMode ? "pointer" : "zoom-in", position: "relative" }}
               >
                 <img src={f.image} alt={f.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
 
@@ -554,10 +565,10 @@ export default function Fabrics() {
                       style={{ flex: 1, border: "1.5px solid #059669", borderRadius: 8, padding: "5px 8px", fontSize: 13, outline: "none", fontFamily: "inherit" }}
                     />
                     <button onClick={() => handleEdit(f.id)} style={{ border: "none", background: "#059669", color: "white", borderRadius: 8, padding: "0 10px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>✓</button>
-                    <button onClick={() => setEditId(null)} style={{ border: "1px solid #e5e7eb", background: "white", borderRadius: 8, padding: "0 8px", cursor: "pointer", fontSize: 13, color: "#6b7280" }}>✕</button>
+                    <button onClick={() => setEditId(null)} style={{ border: `1px solid ${t.border}`, background: t.card, borderRadius: 8, padding: "0 8px", cursor: "pointer", fontSize: 13, color: t.text2 }}>✕</button>
                   </div>
                 ) : (
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", lineHeight: 1.4, marginBottom: 8, wordBreak: "break-word" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: t.text, lineHeight: 1.4, marginBottom: 8, wordBreak: "break-word" }}>
                     {f.name}
                   </div>
                 )}
@@ -566,7 +577,7 @@ export default function Fabrics() {
                   <div style={{ display: "flex", gap: 6 }}>
                     <button
                       onClick={() => { setEditId(f.id); setEditName(f.name); }}
-                      style={{ flex: 1, border: "1px solid #e5e7eb", background: "#f8fafc", borderRadius: 8, padding: "5px 0", cursor: "pointer", fontSize: 12, color: "#6b7280", fontWeight: 600 }}
+                      style={{ flex: 1, border: `1px solid ${t.border}`, background: t.bg, borderRadius: 8, padding: "5px 0", cursor: "pointer", fontSize: 12, color: t.text2, fontWeight: 600 }}
                     >✏️ Sửa tên</button>
                     <button
                       onClick={() => setDeleteId(f.id)}
@@ -647,7 +658,7 @@ export default function Fabrics() {
       {compareMode && (
         <div style={{
           position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 500,
-          background: "white", borderTop: "2px solid #e0f2fe",
+          background: t.card, borderTop: "2px solid #e0f2fe",
           padding: "12px 20px", display: "flex", alignItems: "center",
           gap: 10, boxShadow: "0 -4px 24px rgba(0,0,0,0.1)",
         }}>
@@ -658,9 +669,9 @@ export default function Fabrics() {
               return (
                 <div key={idx} style={{
                   display: "flex", alignItems: "center", gap: 6,
-                  background: item ? (idx === 0 ? "#e0f2fe" : "#fef3c7") : "#f3f4f6",
+                  background: item ? (idx === 0 ? "#e0f2fe" : "#fef3c7") : t.seg,
                   borderRadius: 10, padding: "6px 10px", minWidth: 90,
-                  border: `2px solid ${item ? (idx === 0 ? "#0ea5e9" : "#f59e0b") : "#e5e7eb"}`,
+                  border: `2px solid ${item ? (idx === 0 ? "#0ea5e9" : "#f59e0b") : t.border}`,
                 }}>
                   {item ? (
                     <>
@@ -670,13 +681,13 @@ export default function Fabrics() {
                       }}>
                         <img src={item.image} alt={item.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                       </div>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 80 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 80 }}>
                         {item.name}
                       </span>
-                      <button onClick={() => toggleCompare(item.id)} style={{ marginLeft: "auto", border: "none", background: "none", cursor: "pointer", fontSize: 14, color: "#6b7280", padding: 0, lineHeight: 1 }}>✕</button>
+                      <button onClick={() => toggleCompare(item.id)} style={{ marginLeft: "auto", border: "none", background: "none", cursor: "pointer", fontSize: 14, color: t.text2, padding: 0, lineHeight: 1 }}>✕</button>
                     </>
                   ) : (
-                    <span style={{ fontSize: 12, color: "#9ca3af", fontWeight: 600 }}>
+                    <span style={{ fontSize: 12, color: t.muted, fontWeight: 600 }}>
                       {idx + 1}. Chọn vải...
                     </span>
                   )}
@@ -690,8 +701,8 @@ export default function Fabrics() {
             disabled={compareIds.length < 2}
             style={{
               padding: "10px 18px", border: "none", borderRadius: 10,
-              background: compareIds.length === 2 ? "#0ea5e9" : "#e5e7eb",
-              color: compareIds.length === 2 ? "white" : "#9ca3af",
+              background: compareIds.length === 2 ? "#0ea5e9" : t.seg,
+              color: compareIds.length === 2 ? "white" : t.muted,
               fontWeight: 800, fontSize: 13, cursor: compareIds.length === 2 ? "pointer" : "not-allowed",
               transition: "all 0.18s", whiteSpace: "nowrap",
             }}
@@ -699,8 +710,8 @@ export default function Fabrics() {
           <button
             onClick={exitCompareMode}
             style={{
-              padding: "10px 12px", border: "1.5px solid #e5e7eb", borderRadius: 10,
-              background: "white", color: "#6b7280", fontWeight: 700, fontSize: 12,
+              padding: "10px 12px", border: `1.5px solid ${t.border}`, borderRadius: 10,
+              background: t.card, color: t.text2, fontWeight: 700, fontSize: 12,
               cursor: "pointer",
             }}
           >Thoát</button>
@@ -722,7 +733,7 @@ export default function Fabrics() {
           <div
             onClick={e => e.stopPropagation()}
             style={{
-              background: "white", borderRadius: 20, overflow: "hidden",
+              background: t.card, borderRadius: 20, overflow: "hidden",
               width: "100%", maxWidth: 760,
               boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
             }}
@@ -752,7 +763,7 @@ export default function Fabrics() {
                       background: idx === 0 ? "#0ea5e9" : "#f59e0b", color: "white",
                       borderRadius: 4, padding: "2px 7px", marginBottom: 6,
                     }}>{idx === 0 ? "VẢI 1" : "VẢI 2"}</div>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: "#1e293b", lineHeight: 1.4 }}>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: t.text, lineHeight: 1.4 }}>
                       {item.name}
                     </div>
                   </div>
@@ -764,28 +775,28 @@ export default function Fabrics() {
                 position: "absolute", left: "50%", top: "calc(50% - 50px)",
                 transform: "translate(-50%, -50%)",
                 width: 36, height: 36, borderRadius: "50%",
-                background: "white", border: "3px solid #e5e7eb",
+                background: t.card, border: `3px solid ${t.border}`,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 11, fontWeight: 900, color: "#374151",
+                fontSize: 11, fontWeight: 900, color: t.text,
                 boxShadow: "0 2px 8px rgba(0,0,0,0.15)", zIndex: 5,
                 pointerEvents: "none",
               }}>VS</div>
             </div>
 
             {/* Swap button */}
-            <div style={{ padding: "14px 20px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 10, justifyContent: "center" }}>
+            <div style={{ padding: "14px 20px", borderTop: `1px solid ${t.border}`, display: "flex", gap: 10, justifyContent: "center" }}>
               <button
                 onClick={() => setCompareIds(prev => [prev[1], prev[0]])}
                 style={{
-                  padding: "8px 18px", border: "1.5px solid #e5e7eb", borderRadius: 10,
-                  background: "white", color: "#374151", fontWeight: 700, fontSize: 13, cursor: "pointer",
+                  padding: "8px 18px", border: `1.5px solid ${t.border}`, borderRadius: 10,
+                  background: t.card, color: t.text, fontWeight: 700, fontSize: 13, cursor: "pointer",
                 }}
               >🔄 Đổi vị trí</button>
               <button
                 onClick={() => { setShowCompare(false); setCompareIds([]); }}
                 style={{
                   padding: "8px 18px", border: "none", borderRadius: 10,
-                  background: "#f1f5f9", color: "#374151", fontWeight: 700, fontSize: 13, cursor: "pointer",
+                  background: t.seg, color: t.text, fontWeight: 700, fontSize: 13, cursor: "pointer",
                 }}
               >Chọn lại</button>
             </div>
@@ -816,7 +827,7 @@ export default function Fabrics() {
       </div>
 
       {/* ── FOOTER ── */}
-      <div style={{ textAlign: "center", padding: "20px 16px 28px", color: "#94a3b8", fontSize: 11, letterSpacing: "0.08em", fontWeight: 500 }}>
+      <div style={{ textAlign: "center", padding: "20px 16px 28px", color: t.muted, fontSize: 11, letterSpacing: "0.08em", fontWeight: 500 }}>
         DESIGNED by NGUYEN HUU HOANG
       </div>
     </div>

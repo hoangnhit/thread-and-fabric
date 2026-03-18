@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
+import { useTheme, mkTheme } from "@/contexts/ThemeContext";
 
 /* ─── DATA ─────────────────────────────────────────────────────── */
 const CHART_CONFIG = {
@@ -134,6 +135,8 @@ function ChartImage({ chart, pins, focusedCode }: { chart: typeof CHARTS[0]; pin
 
 /* ─── MAIN ──────────────────────────────────────────────────────── */
 export default function Home() {
+  const { isDark, toggle: toggleTheme } = useTheme();
+  const t = mkTheme(isDark);
   const [, navigate] = useLocation();
   const [brand, setBrand] = useState<"all" | "gingko" | "dantuong">("all");
   const [mode, setMode] = useState<Mode>("single");
@@ -212,7 +215,7 @@ export default function Home() {
     borderBottom: active ? `2.5px solid ${color}` : "2.5px solid transparent",
     marginBottom: -1, cursor: "pointer",
     fontSize: 13, fontWeight: active ? 700 : 500,
-    color: active ? color : "#9ca3af",
+    color: active ? color : t.muted,
     background: "transparent", transition: "all 0.15s",
     whiteSpace: "nowrap" as const,
   });
@@ -221,23 +224,23 @@ export default function Home() {
   const segBtn = (active: boolean, color = "#059669"): CSSProperties => ({
     flex: 1, padding: "6px 8px", border: "none", cursor: "pointer",
     borderRadius: 7, fontSize: 12, fontWeight: active ? 700 : 500,
-    background: active ? "white" : "transparent",
-    color: active ? color : "#94a3b8",
+    background: active ? t.segActive : "transparent",
+    color: active ? color : t.muted,
     boxShadow: active ? "0 1px 4px rgba(0,0,0,0.12), 0 0 0 0.5px rgba(0,0,0,0.04)" : "none",
     transition: "all 0.18s", whiteSpace: "nowrap" as const,
   });
 
   const inputBox = (focused: boolean, accent = "#f59e0b") => ({
     display: "flex", alignItems: "center", gap: 10,
-    background: "white",
-    border: `2px solid ${focused ? accent : "#e5e7eb"}`,
+    background: t.inputBg,
+    border: `2px solid ${focused ? accent : t.inputBorder}`,
     borderRadius: 12, padding: "11px 14px",
     boxShadow: focused ? `0 0 0 4px ${accent}30` : "0 1px 4px rgba(0,0,0,0.07)",
     transition: "all 0.2s",
   });
 
   return (
-    <div ref={topRef} style={{ minHeight: "100vh", background: "#f8fafc", fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif" }}>
+    <div ref={topRef} style={{ minHeight: "100vh", background: t.bg, fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif" }}>
 
       {/* ── HERO ── */}
       <div style={{
@@ -262,13 +265,13 @@ export default function Home() {
       {/* ── MAIN CARD ── */}
       <div style={{
         position: "sticky", top: 0, zIndex: 50,
-        background: scrolled ? "#f8fafc" : "transparent",
+        background: scrolled ? t.scrolledNavBg : "transparent",
         paddingTop: scrolled ? 8 : 0,
         transition: "background 0.2s, padding 0.2s",
       }}>
       <div style={{ maxWidth: 640, margin: scrolled ? "0 auto" : "-28px auto 0", padding: "0 16px", position: "relative", zIndex: 10, transition: "margin 0.2s" }}>
         <div style={{
-          background: "white",
+          background: t.card,
           borderRadius: scrolled ? "0 0 20px 20px" : 20,
           padding: 20,
           boxShadow: scrolled
@@ -281,7 +284,7 @@ export default function Home() {
           {!collapsed && (
             <div style={{ marginBottom: 0 }}>
               {/* Tier 1 — three main tabs */}
-              <div style={{ display: "flex", borderBottom: "1px solid #e5e7eb", marginBottom: 14 }}>
+              <div style={{ display: "flex", borderBottom: `1px solid ${t.border}`, marginBottom: 14, alignItems: "center" }}>
                 <button onClick={() => navigate("/fabrics")} style={mainTab(false, "#d97706")}>
                   🎨 Danh mục vải
                 </button>
@@ -291,17 +294,22 @@ export default function Home() {
                 <button onClick={() => navigate("/viewer")} style={mainTab(false, "#6d28d9")}>
                   📁 File thêu
                 </button>
+                <button
+                  onClick={toggleTheme}
+                  title={isDark ? "Chế độ sáng" : "Chế độ tối"}
+                  style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 17, padding: "4px 6px", marginLeft: 2, marginBottom: -1, lineHeight: 1 }}
+                >{isDark ? "☀️" : "🌙"}</button>
               </div>
 
               {/* Tier 2 — brand segmented control */}
-              <div style={{ display: "flex", background: "#f1f5f9", borderRadius: 9, padding: 3, gap: 2, marginBottom: 8 }}>
+              <div style={{ display: "flex", background: t.seg, borderRadius: 9, padding: 3, gap: 2, marginBottom: 8 }}>
                 <button style={segBtn(brand === "all", "#374151")} onClick={() => setBrand("all")}>Tất cả</button>
                 <button style={segBtn(brand === "gingko", "#059669")} onClick={() => setBrand("gingko")}>🧵 Chỉ GINGKO</button>
                 <button style={segBtn(brand === "dantuong", "#3b82f6")} onClick={() => setBrand("dantuong")}>🪡 Chỉ danh tường</button>
               </div>
 
               {/* Tier 3 — mode segmented control */}
-              <div style={{ display: "flex", background: "#f1f5f9", borderRadius: 9, padding: 3, gap: 2, marginBottom: 18 }}>
+              <div style={{ display: "flex", background: t.seg, borderRadius: 9, padding: 3, gap: 2, marginBottom: 18 }}>
                 <button style={segBtn(mode === "single", "#059669")} onClick={() => switchMode("single")}>🔍 Tìm mã</button>
                 <button style={segBtn(mode === "compare", "#0ea5e9")} onClick={() => switchMode("compare")}>↔️ So sánh 2 mã</button>
                 <button style={segBtn(mode === "scan", "#7c3aed")} onClick={() => switchMode("scan")}>📋 Quét danh sách</button>
@@ -323,11 +331,11 @@ export default function Home() {
                   onChange={e => setQ1(e.target.value)}
                   onFocus={() => setFoc1(true)} onBlur={() => setFoc1(false)}
                   placeholder="Nhập mã màu: G622, 5860, 9030..."
-                  style={{ flex: 1, border: "none", outline: "none", fontSize: 16, color: "#111", background: "transparent", fontFamily: "monospace", fontWeight: 600 }}
+                  style={{ flex: 1, border: "none", outline: "none", fontSize: 16, color: t.text, background: "transparent", fontFamily: "monospace", fontWeight: 600 }}
                 />
-                {q1 && <button onClick={() => setQ1("")} style={{ border: "none", background: "#f3f4f6", color: "#6b7280", borderRadius: "50%", width: 22, height: 22, cursor: "pointer", fontSize: 12, padding: 0 }}>✕</button>}
+                {q1 && <button onClick={() => setQ1("")} style={{ border: "none", background: t.seg, color: t.text2, borderRadius: "50%", width: 22, height: 22, cursor: "pointer", fontSize: 12, padding: 0 }}>✕</button>}
                 {scrolled && (
-                  <button onClick={() => setCollapsed(c => !c)} title={collapsed ? "Mở rộng" : "Thu gọn"} style={{ border: "1.5px solid #e5e7eb", background: collapsed ? "#f0fdf4" : "white", borderRadius: 16, padding: "3px 9px", cursor: "pointer", fontSize: 12, color: collapsed ? "#059669" : "#6b7280", fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0 }}>
+                  <button onClick={() => setCollapsed(c => !c)} title={collapsed ? "Mở rộng" : "Thu gọn"} style={{ border: `1.5px solid ${t.border}`, background: collapsed ? "#f0fdf4" : t.card, borderRadius: 16, padding: "3px 9px", cursor: "pointer", fontSize: 12, color: collapsed ? "#059669" : t.text2, fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0 }}>
                     {collapsed ? "▼" : "▲"}
                   </button>
                 )}
@@ -363,20 +371,20 @@ export default function Home() {
                   onChange={e => setQ1(e.target.value)}
                   onFocus={() => setFoc1(true)} onBlur={() => setFoc1(false)}
                   placeholder="Mã màu 1..."
-                  style={{ flex: 1, border: "none", outline: "none", fontSize: 15, color: "#111", background: "transparent", fontFamily: "monospace", fontWeight: 600 }}
+                  style={{ flex: 1, border: "none", outline: "none", fontSize: 15, color: t.text, background: "transparent", fontFamily: "monospace", fontWeight: 600 }}
                 />
-                {q1 && <button onClick={() => setQ1("")} style={{ border: "none", background: "#f3f4f6", color: "#6b7280", borderRadius: "50%", width: 22, height: 22, cursor: "pointer", fontSize: 12, padding: 0 }}>✕</button>}
+                {q1 && <button onClick={() => setQ1("")} style={{ border: "none", background: t.seg, color: t.text2, borderRadius: "50%", width: 22, height: 22, cursor: "pointer", fontSize: 12, padding: 0 }}>✕</button>}
                 {scrolled && (
-                  <button onClick={() => setCollapsed(c => !c)} title={collapsed ? "Mở rộng" : "Thu gọn"} style={{ border: "1.5px solid #e5e7eb", background: collapsed ? "#f0fdf4" : "white", borderRadius: 16, padding: "3px 9px", cursor: "pointer", fontSize: 12, color: collapsed ? "#059669" : "#6b7280", fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0 }}>
+                  <button onClick={() => setCollapsed(c => !c)} title={collapsed ? "Mở rộng" : "Thu gọn"} style={{ border: `1.5px solid ${t.border}`, background: collapsed ? "#f0fdf4" : t.card, borderRadius: 16, padding: "3px 9px", cursor: "pointer", fontSize: 12, color: collapsed ? "#059669" : t.text2, fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0 }}>
                     {collapsed ? "▼" : "▲"}
                   </button>
                 )}
               </div>
               {!collapsed && (<>
               <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "10px 0" }}>
-                <div style={{ flex: 1, height: 1, background: "#f1f5f9" }} />
-                <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 700 }}>SO SÁNH VỚI</span>
-                <div style={{ flex: 1, height: 1, background: "#f1f5f9" }} />
+                <div style={{ flex: 1, height: 1, background: t.border }} />
+                <span style={{ fontSize: 11, color: t.muted, fontWeight: 700 }}>SO SÁNH VỚI</span>
+                <div style={{ flex: 1, height: 1, background: t.border }} />
               </div>
               <div style={inputBox(foc2, "#0ea5e9")}>
                 <span style={{ fontSize: 16 }}>🔵</span>
@@ -385,9 +393,9 @@ export default function Home() {
                   onChange={e => setQ2(e.target.value)}
                   onFocus={() => setFoc2(true)} onBlur={() => setFoc2(false)}
                   placeholder="Mã màu 2..."
-                  style={{ flex: 1, border: "none", outline: "none", fontSize: 15, color: "#111", background: "transparent", fontFamily: "monospace", fontWeight: 600 }}
+                  style={{ flex: 1, border: "none", outline: "none", fontSize: 15, color: t.text, background: "transparent", fontFamily: "monospace", fontWeight: 600 }}
                 />
-                {q2 && <button onClick={() => setQ2("")} style={{ border: "none", background: "#f3f4f6", color: "#6b7280", borderRadius: "50%", width: 22, height: 22, cursor: "pointer", fontSize: 12, padding: 0 }}>✕</button>}
+                {q2 && <button onClick={() => setQ2("")} style={{ border: "none", background: t.seg, color: t.text2, borderRadius: "50%", width: 22, height: 22, cursor: "pointer", fontSize: 12, padding: 0 }}>✕</button>}
               </div>
 
               {/* result chips */}
@@ -430,13 +438,13 @@ export default function Home() {
                 placeholder={"Ví dụ:\nR=G721, P=G921, Y=5675\nC=G915, C=9030, B=G826"}
                 rows={4}
                 style={{
-                  width: "100%", border: "2px solid #e5e7eb", borderRadius: 12, padding: "12px 14px",
-                  fontSize: 14, fontFamily: "monospace", color: "#111", resize: "vertical",
+                  width: "100%", border: `2px solid ${t.inputBorder}`, borderRadius: 12, padding: "12px 14px",
+                  fontSize: 14, fontFamily: "monospace", color: t.text, resize: "vertical",
                   outline: "none", boxSizing: "border-box", lineHeight: 1.6,
-                  transition: "border 0.2s",
+                  background: t.inputBg, transition: "border 0.2s",
                 }}
                 onFocus={e => e.target.style.borderColor = "#7c3aed"}
-                onBlur={e => e.target.style.borderColor = "#e5e7eb"}
+                onBlur={e => e.target.style.borderColor = t.inputBorder}
               />
 
               {scanCodes.length > 0 && (
@@ -473,13 +481,13 @@ export default function Home() {
 
           {/* ── DANH TƯỜNG placeholder ── */}
           {brand === "dantuong" && (
-            <div style={{ padding: "28px 0 20px", textAlign: "center", color: "#9ca3af" }}>
+            <div style={{ padding: "28px 0 20px", textAlign: "center", color: t.muted }}>
               <div style={{ fontSize: 36, marginBottom: 12 }}>🪡</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "#374151", marginBottom: 6 }}>Chỉ danh tường</div>
-              <div style={{ fontSize: 13, color: "#9ca3af", lineHeight: 1.6 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 6 }}>Chỉ danh tường</div>
+              <div style={{ fontSize: 13, color: t.muted, lineHeight: 1.6 }}>
                 Dữ liệu bảng màu chỉ danh tường<br/>đang được cập nhật.
               </div>
-              <div style={{ marginTop: 16, display: "inline-block", background: "#f1f5f9", borderRadius: 8, padding: "6px 16px", fontSize: 12, color: "#6b7280" }}>
+              <div style={{ marginTop: 16, display: "inline-block", background: t.seg, borderRadius: 8, padding: "6px 16px", fontSize: 12, color: t.text2 }}>
                 Sắp ra mắt
               </div>
             </div>
@@ -520,8 +528,8 @@ export default function Home() {
               style={{ marginBottom: 28 }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                <div style={{ width: 3, height: 18, borderRadius: 2, background: isActive ? "#059669" : "#d1fae5" }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: isActive ? "#065f46" : "#9ca3af", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                <div style={{ width: 3, height: 18, borderRadius: 2, background: isActive ? "#059669" : isDark ? "#1a3a2a" : "#d1fae5" }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: isActive ? "#065f46" : t.muted, textTransform: "uppercase", letterSpacing: "0.1em" }}>
                   {chart.label}
                 </span>
                 {isActive && mode === "scan" && (
@@ -551,7 +559,7 @@ export default function Home() {
                     : "0 2px 12px rgba(0,0,0,0.08)",
                 border: `2px solid ${isFocused ? "#f59e0b" : isActive ? "#059669" : "transparent"}`,
                 transition: "all 0.35s cubic-bezier(0.4,0,0.2,1)",
-                background: "#fff",
+                background: t.card,
               }}>
                 <ChartImage chart={chart} pins={chartPins} focusedCode={mode === "scan" ? focusedScan?.code ?? null : null} />
               </div>
@@ -565,21 +573,21 @@ export default function Home() {
         <div style={{
           position: "fixed", right: 10, top: "50%", transform: "translateY(-50%)",
           width: 88, zIndex: 50,
-          background: "white",
+          background: t.card,
           borderRadius: 14,
           boxShadow: "0 8px 28px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.1)",
-          border: "1.5px solid #e5e7eb",
+          border: `1.5px solid ${t.border}`,
           display: "flex", flexDirection: "column",
           maxHeight: "70vh", overflow: "hidden",
         }}>
           <div style={{
             padding: "8px 6px 6px", textAlign: "center",
-            borderBottom: "1px solid #f1f5f9",
-            background: "#f0fdf4",
+            borderBottom: `1px solid ${t.border}`,
+            background: isDark ? "#1a3a2a" : "#f0fdf4",
             borderRadius: "12px 12px 0 0",
           }}>
             <div style={{ fontSize: 10, fontWeight: 800, color: "#059669", letterSpacing: "0.04em" }}>✅ {scanFound.length} MÃ</div>
-            <div style={{ fontSize: 9, color: "#9ca3af", marginTop: 1 }}>Bấm để xem</div>
+            <div style={{ fontSize: 9, color: t.muted, marginTop: 1 }}>Bấm để xem</div>
           </div>
           <div style={{ overflow: "auto", padding: "6px 5px", display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
             {scanFound.map((h, i) => {
@@ -658,7 +666,7 @@ export default function Home() {
       </div>
 
       {/* ── FOOTER ── */}
-      <div style={{ textAlign: "center", padding: "20px 16px 28px", color: "#94a3b8", fontSize: 11, letterSpacing: "0.08em", fontWeight: 500 }}>
+      <div style={{ textAlign: "center", padding: "20px 16px 28px", color: t.muted, fontSize: 11, letterSpacing: "0.08em", fontWeight: 500 }}>
         DESIGNED by NGUYEN HUU HOANG
       </div>
     </div>
