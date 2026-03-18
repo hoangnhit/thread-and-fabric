@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/thread-color/"
+title = "Thread Color Checker"
+version = "1.0.0"
+id = "artifacts/thread-color"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+localPort = 20215
+name = "web"
+paths = ["/thread-color/"]
+
+[services.development]
+run = "pnpm --filter @workspace/thread-color run dev"
+
+[services.env]
+PORT = "20215"
+BASE_PATH = "/thread-color/"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/thread-color", "run", "build"]
+publicDir = "artifacts/thread-color/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
