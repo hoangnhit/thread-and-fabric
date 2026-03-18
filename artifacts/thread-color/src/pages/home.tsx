@@ -205,12 +205,13 @@ export default function Home() {
 
   /* pill button style */
   const pill = (active: boolean, color = "#059669") => ({
-    padding: "7px 16px", borderRadius: 20, border: "none", cursor: "pointer",
-    fontSize: 12, fontWeight: 700, letterSpacing: "0.03em",
+    padding: "5px 11px", borderRadius: 20, border: "none", cursor: "pointer",
+    fontSize: 11.5, fontWeight: 700, letterSpacing: "0.01em",
     background: active ? color : "#f1f5f9",
     color: active ? "white" : "#64748b",
     transition: "all 0.18s",
     whiteSpace: "nowrap" as const,
+    flexShrink: 0,
   });
 
   const inputBox = (focused: boolean, accent = "#f59e0b") => ({
@@ -265,15 +266,15 @@ export default function Home() {
 
           {/* Mode switcher — hidden when collapsed */}
           {!collapsed && (
-            <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 5, marginBottom: 18, flexWrap: "nowrap", alignItems: "center" }}>
               <button style={pill(mode === "single")} onClick={() => switchMode("single")}>🔍 Tìm mã</button>
               <button style={pill(mode === "compare", "#0ea5e9")} onClick={() => switchMode("compare")}>↔️ So sánh 2 mã</button>
-              <button style={pill(mode === "scan", "#7c3aed")} onClick={() => switchMode("scan")}>📋 Quét danh sách</button>
+              <button style={pill(mode === "scan", "#7c3aed")} onClick={() => switchMode("scan")}>📋 Quét DS</button>
               <a href={`${import.meta.env.BASE_URL}fabrics`} style={{ textDecoration: "none" }}>
                 <button style={pill(false, "#d97706")}>🎨 Danh mục vải</button>
               </a>
               <a href={`${import.meta.env.BASE_URL}viewer`} style={{ textDecoration: "none" }}>
-                <button style={pill(false, "#6d28d9")}>🧵 Xem file thêu</button>
+                <button style={pill(false, "#6d28d9")}>🧵 File thêu</button>
               </a>
             </div>
           )}
