@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useLocation } from "wouter";
 
 interface FabricItem {
   id: number;
@@ -49,6 +50,7 @@ function colorToDataUrl(hex: string, name: string): string {
 }
 
 export default function Fabrics() {
+  const [, navigate] = useLocation();
   const [fabrics, setFabrics] = useState<FabricItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -211,12 +213,23 @@ export default function Fabrics() {
     ? fabrics.filter(f => f.name.toLowerCase().includes(search.toLowerCase()))
     : fabrics;
 
-  const pill = (active: boolean) => ({
-    padding: "7px 18px", borderRadius: 20, border: "none", cursor: "pointer",
-    fontSize: 13, fontWeight: 700,
-    background: active ? "#059669" : "#f1f5f9",
-    color: active ? "white" : "#64748b",
-    transition: "all 0.18s",
+  const mainTab = (active: boolean, color: string) => ({
+    flex: 1, padding: "9px 10px", border: "none",
+    borderBottom: active ? `2.5px solid ${color}` : "2.5px solid transparent",
+    marginBottom: -1, cursor: "pointer",
+    fontSize: 13, fontWeight: active ? 700 : 500,
+    color: active ? color : "#9ca3af",
+    background: "transparent", transition: "all 0.15s",
+    whiteSpace: "nowrap" as const,
+  });
+
+  const subPill = (active: boolean, color = "#059669") => ({
+    padding: "5px 14px", borderRadius: 20, cursor: "pointer",
+    fontSize: 12, fontWeight: 600,
+    border: `1.5px solid ${active ? color : "#e5e7eb"}`,
+    background: active ? color : "white",
+    color: active ? "white" : "#6b7280",
+    transition: "all 0.15s", whiteSpace: "nowrap" as const,
   });
 
   return (
@@ -245,54 +258,44 @@ export default function Fabrics() {
       <div style={{ maxWidth: 640, margin: "-28px auto 0", padding: "0 16px", position: "relative", zIndex: 10 }}>
         <div style={{ background: "white", borderRadius: 20, padding: 20, boxShadow: "0 8px 40px rgba(0,0,0,0.13)" }}>
 
-          {/* Nav + search row */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
-            <a href={import.meta.env.BASE_URL} style={{ textDecoration: "none" }}>
-              <button style={pill(false)}>🔍 Tra chỉ thêu</button>
-            </a>
-            <button style={pill(true)}>🎨 Danh mục vải</button>
+          {/* Tier 1 — main nav tabs */}
+          <div style={{ display: "flex", borderBottom: "1px solid #e5e7eb", marginBottom: 14 }}>
+            <button onClick={() => navigate("/")} style={mainTab(false, "#059669")}>
+              🧵 Danh mục màu chỉ
+            </button>
+            <button style={mainTab(true, "#d97706")}>
+              🎨 Danh mục vải
+            </button>
+            <button onClick={() => navigate("/viewer")} style={mainTab(false, "#6d28d9")}>
+              📁 File thêu
+            </button>
+          </div>
+
+          {/* Tier 2 — fabric sub-actions */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
             <div style={{ flex: 1, minWidth: 120 }}>
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Tìm tên vải..."
+                placeholder="🔍 Tìm tên vải..."
                 style={{
-                  width: "100%", border: "1.5px solid #e5e7eb", borderRadius: 10,
-                  padding: "7px 12px", fontSize: 13, outline: "none",
-                  fontFamily: "inherit", boxSizing: "border-box",
+                  width: "100%", border: "1.5px solid #e5e7eb", borderRadius: 20,
+                  padding: "5px 14px", fontSize: 12, outline: "none",
+                  fontFamily: "inherit", boxSizing: "border-box", color: "#374151",
                 }}
               />
             </div>
-            <button
-              onClick={() => { setCompareMode(m => !m); setCompareIds([]); setShowCompare(false); }}
-              style={{
-                background: compareMode ? "#0ea5e9" : "#e0f2fe", color: compareMode ? "white" : "#0369a1",
-                border: "none", borderRadius: 10, padding: "8px 12px", fontSize: 12,
-                fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
-                transition: "all 0.18s",
-              }}
-            >
+            <button onClick={() => { setCompareMode(m => !m); setCompareIds([]); setShowCompare(false); }}
+              style={subPill(compareMode, "#0ea5e9")}>
               ↔️ So sánh
             </button>
-            <button
-              onClick={handleAddPresets}
+            <button onClick={handleAddPresets}
               title="Thêm 20 màu cơ bản (White, Black, Blue, Red...)"
-              style={{
-                background: "#f59e0b", color: "white", border: "none", borderRadius: 10,
-                padding: "8px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
+              style={subPill(false, "#f59e0b")}>
               🎨 Màu cơ bản
             </button>
-            <button
-              onClick={() => setShowAdd(true)}
-              style={{
-                background: "#059669", color: "white", border: "none", borderRadius: 10,
-                padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer",
-                display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap",
-              }}
-            >
+            <button onClick={() => setShowAdd(true)}
+              style={{ ...subPill(false, "#059669"), background: "#059669", color: "white", border: "1.5px solid #059669" }}>
               + Thêm vải
             </button>
           </div>
