@@ -217,24 +217,14 @@ export default function Home() {
     whiteSpace: "nowrap" as const,
   });
 
-  /* sub-mode pill style (kept for reference) */
-  const subPill = (active: boolean, color = "#059669") => ({
-    padding: "5px 14px", borderRadius: 20, cursor: "pointer",
-    fontSize: 12, fontWeight: 600,
-    border: `1.5px solid ${active ? color : "#e5e7eb"}`,
-    background: active ? color : "white",
-    color: active ? "white" : "#6b7280",
-    transition: "all 0.15s", whiteSpace: "nowrap" as const,
-  });
-
-  /* sub-tab (underline indicator, same style for brand row & mode row) */
-  const subTab = (active: boolean, color = "#059669"): CSSProperties => ({
-    flex: 1, padding: "7px 4px 9px",
-    background: "none", border: "none", cursor: "pointer",
-    fontWeight: active ? 700 : 500, fontSize: 12.5,
-    color: active ? color : "#9ca3af",
-    borderBottom: active ? `2px solid ${color}` : "2px solid transparent",
-    marginBottom: -1, transition: "all 0.15s", whiteSpace: "nowrap",
+  /* segmented control button */
+  const segBtn = (active: boolean, color = "#059669"): CSSProperties => ({
+    flex: 1, padding: "6px 8px", border: "none", cursor: "pointer",
+    borderRadius: 7, fontSize: 12, fontWeight: active ? 700 : 500,
+    background: active ? "white" : "transparent",
+    color: active ? color : "#94a3b8",
+    boxShadow: active ? "0 1px 4px rgba(0,0,0,0.12), 0 0 0 0.5px rgba(0,0,0,0.04)" : "none",
+    transition: "all 0.18s", whiteSpace: "nowrap" as const,
   });
 
   const inputBox = (focused: boolean, accent = "#f59e0b") => ({
@@ -303,18 +293,18 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* Tier 2 — brand (row 1) */}
-              <div style={{ display: "flex", borderBottom: "1px solid #e5e7eb", marginBottom: 0 }}>
-                <button style={subTab(brand === "all", "#374151")} onClick={() => setBrand("all")}>Tất cả</button>
-                <button style={subTab(brand === "gingko", "#059669")} onClick={() => setBrand("gingko")}>🧵 Chỉ GINGKO</button>
-                <button style={subTab(brand === "dantuong", "#3b82f6")} onClick={() => setBrand("dantuong")}>🪡 Chỉ danh tường</button>
+              {/* Tier 2 — brand segmented control */}
+              <div style={{ display: "flex", background: "#f1f5f9", borderRadius: 9, padding: 3, gap: 2, marginBottom: 8 }}>
+                <button style={segBtn(brand === "all", "#374151")} onClick={() => setBrand("all")}>Tất cả</button>
+                <button style={segBtn(brand === "gingko", "#059669")} onClick={() => setBrand("gingko")}>🧵 Chỉ GINGKO</button>
+                <button style={segBtn(brand === "dantuong", "#3b82f6")} onClick={() => setBrand("dantuong")}>🪡 Chỉ danh tường</button>
               </div>
 
-              {/* Tier 3 — mode (row 2), same style */}
-              <div style={{ display: "flex", borderBottom: "1px solid #e5e7eb", marginBottom: 18 }}>
-                <button style={subTab(mode === "single", "#059669")} onClick={() => switchMode("single")}>🔍 Tìm mã</button>
-                <button style={subTab(mode === "compare", "#0ea5e9")} onClick={() => switchMode("compare")}>↔️ So sánh 2 mã</button>
-                <button style={subTab(mode === "scan", "#7c3aed")} onClick={() => switchMode("scan")}>📋 Quét danh sách</button>
+              {/* Tier 3 — mode segmented control */}
+              <div style={{ display: "flex", background: "#f1f5f9", borderRadius: 9, padding: 3, gap: 2, marginBottom: 18 }}>
+                <button style={segBtn(mode === "single", "#059669")} onClick={() => switchMode("single")}>🔍 Tìm mã</button>
+                <button style={segBtn(mode === "compare", "#0ea5e9")} onClick={() => switchMode("compare")}>↔️ So sánh 2 mã</button>
+                <button style={segBtn(mode === "scan", "#7c3aed")} onClick={() => switchMode("scan")}>📋 Quét danh sách</button>
               </div>
             </div>
           )}
