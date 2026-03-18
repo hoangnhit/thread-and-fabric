@@ -1,16 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 
-const IMAGE_WIDTH = 960;
-const IMAGE_HEIGHT = 1280;
-
 const CHART_CONFIG = {
-  ae: { topY: 252, rowH: 50, rotateDeg: 1.5 },
-  pt: { topY: 215, rowH: 52, rotateDeg: 0.3 },
+  ae: { imageW: 1158, imageH: 1280, topY: 35, rowH: 62, rotateDeg: 0, boxW: 145 },
+  pt: { imageW: 960,  imageH: 1280, topY: 215, rowH: 52, rotateDeg: 0, boxW: 65 },
 };
 
 function rowYPct(chartId: "ae" | "pt", i: number): number {
-  const { topY, rowH } = CHART_CONFIG[chartId];
-  return (topY + (i + 0.5) * rowH) / IMAGE_HEIGHT;
+  const { topY, rowH, imageH } = CHART_CONFIG[chartId];
+  return (topY + (i + 0.5) * rowH) / imageH;
 }
 
 const CHARTS = [
@@ -19,11 +16,11 @@ const CHARTS = [
     file: "/thread-chart-ae.jpg",
     label: "Bảng A – E",
     columns: [
-      { name: "A", xPct: 0.078, codes: ["G622","G661","G561","G666","G866","G861","G727","G735","G626","9003","5860","G683","G623","G924","G980","G724","G971","9001","G024","G624"] },
-      { name: "B", xPct: 0.255, codes: ["G826","G755","5695","G771","5766","G955","G172","5763","G951","G725","G772","G625","G869","G763","G765","G778","G965","G678","9072","G987"] },
-      { name: "C", xPct: 0.432, codes: ["G713","G818","G816","9030","G915","G815","G549","G819","5675","G948","G921","G548","G994","G721","G584","G990","G754","G734","G910","G993"] },
-      { name: "D", xPct: 0.609, codes: ["G653","G882","G853","G752","G820","G817","G620","G777","G616","G952","G521","G621","5767","G588","G779","G919","G917","G508","5732","G984"] },
-      { name: "E", xPct: 0.786, codes: ["G878","G509","G637","5566","G839","G838","G747","5629","O0344","G681","G707","G986","G639","G786","G821","G781","G899","5634","G782","G783"] },
+      { name: "A", xPct: 0.130, codes: ["G622","G661","G561","G666","G866","G861","G727","G735","G626","9003","5860","G683","G623","G924","G980","G724","G971","9001","G024","G624"] },
+      { name: "B", xPct: 0.330, codes: ["G826","G755","5695","G771","5766","G955","G172","5763","G951","G725","G772","G625","G869","G763","G765","G778","G965","G678","9072","G987"] },
+      { name: "C", xPct: 0.529, codes: ["G713","G818","G816","9030","G915","G815","G549","G819","5675","G948","G921","G548","G994","G721","G584","G990","G754","G734","G910","G993"] },
+      { name: "D", xPct: 0.730, codes: ["G653","G882","G853","G752","G820","G817","G620","G777","G616","G952","G521","G621","5767","G588","G779","G919","G917","G508","5732","G984"] },
+      { name: "E", xPct: 0.929, codes: ["G878","G509","G637","5566","G839","G838","G747","5629","00344","G681","G707","G986","G639","G786","G821","G781","G899","5634","G782","G783"] },
     ],
   },
   {
@@ -98,10 +95,11 @@ function ChartImage({ chart, hit }: { chart: typeof CHARTS[0]; hit: Hit | null }
           col.name === activeHit.col
             ? col.codes.map((_, i) => {
                 if (i !== activeHit.row) return null;
+                const cfg = CHART_CONFIG[chart.id];
                 const cx = col.xPct * size.w;
                 const cy = rowYPct(chart.id, i) * size.h;
-                const bw = (65 / IMAGE_WIDTH) * size.w;
-                const bh = (CHART_CONFIG[chart.id].rowH * 0.85 / IMAGE_HEIGHT) * size.h;
+                const bw = (cfg.boxW / cfg.imageW) * size.w;
+                const bh = (cfg.rowH * 0.85 / cfg.imageH) * size.h;
                 return (
                   <div
                     key={`hit-${col.name}-${i}`}
