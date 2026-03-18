@@ -71,8 +71,9 @@ const SLOT_STYLES = [
   { fill: "rgba(56,189,248,0.35)", border: "#0ea5e9", glow: "rgba(14,165,233,0.65)", anim: "pb" },
 ];
 const SCAN_STYLE = { fill: "rgba(251,191,36,0.4)", border: "#f59e0b", glow: "rgba(245,158,11,0.7)", anim: "pa" };
+const FOCUSED_SCAN_STYLE = { fill: "rgba(5,150,105,0.45)", border: "#059669", glow: "rgba(5,150,105,0.8)", anim: "pc" };
 
-function ChartImage({ chart, pins }: { chart: typeof CHARTS[0]; pins: { hit: Hit; slotStyle: typeof SLOT_STYLES[0] }[] }) {
+function ChartImage({ chart, pins, focusedCode }: { chart: typeof CHARTS[0]; pins: { hit: Hit; slotStyle: typeof SLOT_STYLES[0] }[]; focusedCode?: string | null }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
 
@@ -110,15 +111,18 @@ function ChartImage({ chart, pins }: { chart: typeof CHARTS[0]; pins: { hit: Hit
             const cy = rowYPct(chart.id, hit.row) * size.h;
             const bw = (cfg.boxW / cfg.imageW) * size.w;
             const bh = (cfg.rowH * 0.85 / cfg.imageH) * size.h;
+            const isFocused = focusedCode != null && hit.code === focusedCode;
+            const s = isFocused ? FOCUSED_SCAN_STYLE : slotStyle;
             return (
               <div key={`pin-${idx}`} style={{
                 position: "absolute",
                 left: cx - bw / 2, top: cy - bh / 2,
                 width: bw, height: bh, borderRadius: 6,
-                backgroundColor: slotStyle.fill,
-                boxShadow: `0 0 0 2.5px ${slotStyle.border}, 0 0 14px ${slotStyle.glow}`,
+                backgroundColor: s.fill,
+                boxShadow: `0 0 0 2.5px ${s.border}, 0 0 14px ${s.glow}`,
                 pointerEvents: "none",
-                animation: `${slotStyle.anim} 1.4s ease-in-out infinite`,
+                animation: `${s.anim} 1.4s ease-in-out infinite`,
+                zIndex: isFocused ? 10 : 1,
               }} />
             );
           })}
@@ -433,7 +437,7 @@ export default function Home() {
                 transition: "all 0.35s cubic-bezier(0.4,0,0.2,1)",
                 background: "#fff",
               }}>
-                <ChartImage chart={chart} pins={chartPins} />
+                <ChartImage chart={chart} pins={chartPins} focusedCode={mode === "scan" ? focusedScan?.code ?? null : null} />
               </div>
             </div>
           );
@@ -509,6 +513,10 @@ export default function Home() {
         @keyframes pb {
           0%,100% { box-shadow: 0 0 0 2.5px #0ea5e9, 0 0 10px rgba(14,165,233,0.5); }
           50%      { box-shadow: 0 0 0 4px   #0ea5e9, 0 0 22px rgba(14,165,233,0.8); }
+        }
+        @keyframes pc {
+          0%,100% { box-shadow: 0 0 0 2.5px #059669, 0 0 10px rgba(5,150,105,0.6); }
+          50%      { box-shadow: 0 0 0 5px   #059669, 0 0 24px rgba(5,150,105,0.9); }
         }
         input[type="search"]::-webkit-search-cancel-button { display: none; }
         * { box-sizing: border-box; }
