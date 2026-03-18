@@ -242,6 +242,9 @@ export default function Home() {
             <button style={pill(mode === "single")} onClick={() => switchMode("single")}>🔍 Tìm mã</button>
             <button style={pill(mode === "compare", "#0ea5e9")} onClick={() => switchMode("compare")}>↔️ So sánh 2 mã</button>
             <button style={pill(mode === "scan", "#7c3aed")} onClick={() => switchMode("scan")}>📋 Quét danh sách</button>
+            <a href={`${import.meta.env.BASE_URL}fabrics`} style={{ textDecoration: "none" }}>
+              <button style={pill(false, "#d97706")}>🎨 Danh mục vải</button>
+            </a>
           </div>
 
           {/* ── SINGLE MODE ── */}
