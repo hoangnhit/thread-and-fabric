@@ -437,33 +437,29 @@ function renderDesign(
   }
 
   const BRIDGE_THRESHOLD = 30; // stitch units (~3mm)
-  // Real cotton embroidery thread is matte — very subtle shading, not shiny.
-  // Thread half-radius: thin enough to see individual stitches but packed tightly.
-  const threadR = Math.max(1.0, scale * 1.5); // half-diameter in px
+  // Thin sewing thread: radius ≈ 0.5–0.9 px at normal zoom.
+  // Each stitch is a slim filled rectangle — no fat-tube look.
+  const threadR = Math.max(0.55, scale * 0.85);
 
-  // Draw one stitch (A→B) as a filled rotated rectangle.
-  // Gradient is perpendicular to the stitch — matte cylinder look (low contrast).
   function drawThread(x1:number,y1:number,x2:number,y2:number,color:string) {
     const dx = x2-x1, dy = y2-y1;
     const len = Math.hypot(dx, dy);
-    if (len < 0.3) return;
+    if (len < 0.2) return;
     const ux = dx/len, uy = dy/len;
     const px = -uy, py = ux;
     const r = threadR;
-    const ext = Math.min(r * 0.5, 1.5);
+    const ext = r * 0.4; // tiny cap to prevent visible gaps
 
-    // Subtle matte gradient — shadow at edges, barely brighter at centre.
-    // Real cotton: ~30–40 units spread (NOT the 140-unit "plastic" look).
+    // Very subtle 3-stop gradient across the thread width (dark edge → slight highlight → dark edge)
+    // Thin threads don't need much shading — the pattern itself creates the texture.
     const mx = (x1+x2)/2, my = (y1+y2)/2;
     const grad = ctx.createLinearGradient(
       mx + px*r, my + py*r,
       mx - px*r, my - py*r
     );
-    grad.addColorStop(0,    shadeHex(color, -38));
-    grad.addColorStop(0.30, shadeHex(color,  -8));
-    grad.addColorStop(0.50, shadeHex(color,  22));  // gentle highlight
-    grad.addColorStop(0.70, shadeHex(color,  -5));
-    grad.addColorStop(1,    shadeHex(color, -38));
+    grad.addColorStop(0,   shadeHex(color, -28));
+    grad.addColorStop(0.5, shadeHex(color,  18));
+    grad.addColorStop(1,   shadeHex(color, -28));
 
     ctx.beginPath();
     ctx.moveTo(x1 - ux*ext + px*r,  y1 - uy*ext + py*r);
