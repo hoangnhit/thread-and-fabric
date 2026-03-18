@@ -135,7 +135,7 @@ function ChartImage({ chart, pins, focusedCode }: { chart: typeof CHARTS[0]; pin
 
 /* ─── MAIN ──────────────────────────────────────────────────────── */
 export default function Home() {
-  const { isDark, toggle: toggleTheme } = useTheme();
+  const { isDark } = useTheme();
   const t = mkTheme(isDark);
   const [, navigate] = useLocation();
   const [brand, setBrand] = useState<"all" | "gingko" | "dantuong">("all");
@@ -294,11 +294,6 @@ export default function Home() {
                 <button onClick={() => navigate("/viewer")} style={mainTab(false, "#6d28d9")}>
                   📁 File thêu
                 </button>
-                <button
-                  onClick={toggleTheme}
-                  title={isDark ? "Chế độ sáng" : "Chế độ tối"}
-                  style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 17, padding: "4px 6px", marginLeft: 2, marginBottom: -1, lineHeight: 1 }}
-                >{isDark ? "☀️" : "🌙"}</button>
               </div>
 
               {/* Tier 2 — brand segmented control */}
