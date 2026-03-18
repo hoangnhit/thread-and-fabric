@@ -1,170 +1,183 @@
-import { useState, useMemo } from "react";
-import { threads } from "@/data/threads";
+import { useState, useRef, useEffect } from "react";
 
-const COLUMN_COLORS: Record<string, string> = {
-  A: "#f6e96b", B: "#f0a500", C: "#f4a0c0",
-  D: "#f07060", E: "#c0202a", K: "#7ab87a",
-  L: "#90c090", M: "#a8d0a0", N: "#b0c8c0",
-  O: "#c0d0b8", P: "#d0c8a0", Q: "#b08060",
-  R: "#90a060", S: "#8090b0", T: "#606080",
-};
+const IMAGE_WIDTH = 960;
+const IMAGE_HEIGHT = 1280;
 
-function getTextColor(hex: string): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.5 ? "#222222" : "#ffffff";
+const TOP_MARGIN = 115;
+const SWATCH_HEIGHT = 1050;
+const NUM_ROWS = 20;
+const ROW_HEIGHT = SWATCH_HEIGHT / NUM_ROWS;
+
+function rowY(i: number) {
+  return (TOP_MARGIN + (i + 0.5) * ROW_HEIGHT) / IMAGE_HEIGHT;
+}
+
+const CHARTS = [
+  {
+    id: "ae",
+    file: "/thread-chart-ae.jpg",
+    label: "Bảng A–E",
+    columns: [
+      { name: "A", xPct: 0.073, codes: ["G622","G661","G561","G666","G866","G861","G727","G735","G626","9003","5860","G683","G623","G924","G980","G724","G971","9001","G024","G624"] },
+      { name: "B", xPct: 0.248, codes: ["G826","G755","5695","G771","5766","G955","G172","5763","G951","G725","G772","G625","G869","G763","G765","G778","G965","G678","9072","G987"] },
+      { name: "C", xPct: 0.425, codes: ["G713","G818","G816","9030","G915","G815","G549","G819","5675","G948","G921","G548","G994","G721","G584","G990","G754","G734","G910","G993"] },
+      { name: "D", xPct: 0.602, codes: ["G653","G882","G853","G752","G820","G817","G620","G777","G616","G952","G521","G621","5767","G588","G779","G919","G917","G508","5732","G984"] },
+      { name: "E", xPct: 0.781, codes: ["G878","G509","G637","5566","G839","G838","G747","5629","O0344","G681","G707","G986","G639","G786","G821","G781","G899","5634","G782","G783"] },
+    ],
+  },
+  {
+    id: "pt",
+    file: "/thread-chart-pt.jpg",
+    label: "Bảng P–T",
+    columns: [
+      { name: "P", xPct: 0.073, codes: ["G554","G723","G927","5776","G060","G938","G660","G573","G656","G926","9132","G527","G855","G884","G556","9086","G885","G729","G854","G736"] },
+      { name: "Q", xPct: 0.248, codes: ["G526","G670","G870","G673","G538","G792","G791","G672","G726","G753","G773","G856","G898","G657","G973","G857","5788","G942","G658","G858"] },
+      { name: "R", xPct: 0.425, codes: ["G686","G949","G822","G582","G682","G863","G738","G860","G535","G862","G728","G928","G730","G906","G758","G565","G958","G945","G654","5551"] },
+      { name: "S", xPct: 0.602, codes: ["G592","G563","G687","G610","G810","G886","G811","G505","G718","G812","G611","5783","G545","O0939","G761","G613","G612","G212","G918","G572"] },
+      { name: "T", xPct: 0.781, codes: ["O0919","G575","G615","G502","G840","G614","G740","G618","G689","G539","G662","G936","G741","G664","G619","G640","G544","G841","G760","G540"] },
+    ],
+  },
+];
+
+type Hit = { chartId: string; col: string; row: number; code: string };
+
+function findCode(query: string): Hit | null {
+  const q = query.trim().toUpperCase();
+  if (!q) return null;
+  for (const chart of CHARTS) {
+    for (const col of chart.columns) {
+      const row = col.codes.findIndex((c) => c.toUpperCase() === q);
+      if (row !== -1) return { chartId: chart.id, col: col.name, row, code: col.codes[row] };
+    }
+  }
+  return null;
+}
+
+function ChartImage({ chart, hit }: { chart: typeof CHARTS[0]; hit: Hit | null }) {
+  const imgRef = useRef<HTMLImageElement>(null);
+  const [imgSize, setImgSize] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const img = imgRef.current;
+    if (!img) return;
+    const update = () => setImgSize({ w: img.offsetWidth, h: img.offsetHeight });
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(img);
+    return () => ro.disconnect();
+  }, []);
+
+  const activeCol = hit && hit.chartId === chart.id ? hit : null;
+
+  const scaleX = imgSize.w / IMAGE_WIDTH;
+  const scaleY = imgSize.h / IMAGE_HEIGHT;
+
+  return (
+    <div className="relative w-full">
+      <img
+        ref={imgRef}
+        src={chart.file}
+        alt={chart.label}
+        className="w-full block"
+        style={{ userSelect: "none" }}
+      />
+
+      {imgSize.w > 0 && chart.columns.map((col) =>
+        col.codes.map((code, i) => {
+          const isHit = activeCol && activeCol.col === col.name && activeCol.row === i;
+          const cx = col.xPct * imgSize.w;
+          const cy = rowY(i) * imgSize.h;
+          const boxW = 70 * scaleX;
+          const boxH = ROW_HEIGHT * scaleY * 0.82;
+
+          return (
+            <div
+              key={`${col.name}-${i}`}
+              style={{
+                position: "absolute",
+                left: cx - boxW / 2,
+                top: cy - boxH / 2,
+                width: boxW,
+                height: boxH,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 3,
+                backgroundColor: isHit ? "rgba(255,220,0,0.55)" : "transparent",
+                boxShadow: isHit ? "0 0 0 2px #f59e0b" : "none",
+                transition: "background-color 0.2s, box-shadow 0.2s",
+                pointerEvents: "none",
+              }}
+            />
+          );
+        })
+      )}
+    </div>
+  );
 }
 
 export default function Home() {
   const [query, setQuery] = useState("");
-  const [selectedColumn, setSelectedColumn] = useState<string | null>(null);
+  const chartRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const hitRef = useRef<HTMLDivElement | null>(null);
 
-  const columns = useMemo(() => {
-    const cols = new Set(threads.map((t) => t.column));
-    return Array.from(cols).sort();
-  }, []);
+  const hit = findCode(query);
 
-  const results = useMemo(() => {
-    const q = query.trim().toUpperCase();
-    return threads.filter((t) => {
-      const matchQuery = !q || t.code.toUpperCase().includes(q);
-      const matchCol = !selectedColumn || t.column === selectedColumn;
-      return matchQuery && matchCol;
-    });
-  }, [query, selectedColumn]);
-
-  const exactMatch = results.length === 1 || (query && results.find((t) => t.code.toUpperCase() === query.toUpperCase()));
+  useEffect(() => {
+    if (hit) {
+      setTimeout(() => {
+        hitRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+    }
+  }, [hit]);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center">
+    <div className="min-h-screen bg-gray-100 flex flex-col">
+      <header className="sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm">
+        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-green-700 flex items-center justify-center flex-shrink-0">
             <span className="text-white text-xs font-bold">G</span>
           </div>
-          <div>
-            <h1 className="text-lg font-bold text-gray-900 leading-tight">Tra Cứu Chỉ Thêu Gingko</h1>
-            <p className="text-xs text-gray-500">Gingko Brand High-Grade Embroidery Thread</p>
-          </div>
-        </div>
-      </header>
-
-      <main className="flex-1 max-w-3xl mx-auto w-full px-4 py-6 flex flex-col gap-5">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex flex-col gap-3">
           <input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Nhập mã màu (vd: G622, 5860...)"
-            className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition"
+            placeholder="Nhập mã màu chỉ (vd: G622, 5860...)"
+            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition"
             autoFocus
           />
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setSelectedColumn(null)}
-              className={`px-3 py-1 rounded-full text-sm font-medium border transition ${
-                selectedColumn === null
-                  ? "bg-green-600 text-white border-green-600"
-                  : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
-              }`}
-            >
-              Tất cả
-            </button>
-            {columns.map((col) => (
-              <button
-                key={col}
-                onClick={() => setSelectedColumn(selectedColumn === col ? null : col)}
-                className={`px-3 py-1 rounded-full text-sm font-bold border transition ${
-                  selectedColumn === col
-                    ? "ring-2 ring-offset-1 ring-green-500"
-                    : "hover:opacity-80"
-                }`}
-                style={{
-                  backgroundColor: COLUMN_COLORS[col] ?? "#e0e0e0",
-                  color: getTextColor(COLUMN_COLORS[col] ?? "#e0e0e0"),
-                  borderColor: COLUMN_COLORS[col] ?? "#e0e0e0",
-                }}
-              >
-                {col}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {query && exactMatch && typeof exactMatch === "object" && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <p className="text-xs text-gray-500 mb-2 font-medium uppercase tracking-wide">Kết quả chính xác</p>
-            <div className="flex items-center gap-4">
-              <div
-                className="w-20 h-20 rounded-xl shadow-md flex-shrink-0 border border-gray-100"
-                style={{ backgroundColor: exactMatch.hex ?? COLUMN_COLORS[exactMatch.column] ?? "#ccc" }}
-              />
-              <div>
-                <p className="text-2xl font-bold text-gray-900">{exactMatch.code}</p>
-                <p className="text-gray-500 text-sm mt-1">Cột <strong>{exactMatch.column}</strong></p>
-                {exactMatch.hex && (
-                  <p className="text-xs text-gray-400 font-mono mt-1">{exactMatch.hex.toUpperCase()}</p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-700">
-              {results.length} kết quả{selectedColumn ? ` trong cột ${selectedColumn}` : ""}
+          {hit && (
+            <span className="text-sm font-semibold text-green-700 flex-shrink-0">
+              Cột {hit.col} #{hit.row + 1}
             </span>
-            {results.length < threads.length && (
-              <button
-                onClick={() => { setQuery(""); setSelectedColumn(null); }}
-                className="text-xs text-green-600 hover:underline"
-              >
-                Xóa bộ lọc
-              </button>
-            )}
-          </div>
-
-          {results.length === 0 ? (
-            <div className="p-8 text-center text-gray-400">
-              <p className="text-lg">Không tìm thấy mã "<strong>{query}</strong>"</p>
-              <p className="text-sm mt-1">Hãy thử mã khác hoặc kiểm tra lại chính tả</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-50 max-h-[500px] overflow-y-auto">
-              {results.map((t) => (
-                <div key={`${t.column}-${t.code}`} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition">
-                  <div
-                    className="w-10 h-7 rounded-md flex-shrink-0 border border-gray-100"
-                    style={{ backgroundColor: t.hex ?? COLUMN_COLORS[t.column] ?? "#ccc" }}
-                  />
-                  <span className="font-semibold text-gray-900 flex-1 text-sm">{t.code}</span>
-                  <span
-                    className="text-xs font-bold px-2 py-0.5 rounded-full"
-                    style={{
-                      backgroundColor: COLUMN_COLORS[t.column] ?? "#e0e0e0",
-                      color: getTextColor(COLUMN_COLORS[t.column] ?? "#e0e0e0"),
-                    }}
-                  >
-                    {t.column}
-                  </span>
-                  {t.hex && (
-                    <span className="text-xs text-gray-400 font-mono hidden sm:block w-16 text-right">
-                      {t.hex.toUpperCase()}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
+          )}
+          {query && !hit && (
+            <span className="text-sm text-red-500 flex-shrink-0">Không tìm thấy</span>
           )}
         </div>
+      </header>
+
+      <main className="flex-1 max-w-2xl mx-auto w-full px-2 py-4 flex flex-col gap-6">
+        {CHARTS.map((chart) => (
+          <div
+            key={chart.id}
+            ref={(el) => { chartRefs.current[chart.id] = el; }}
+          >
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-1 px-1">
+              {chart.label}
+            </p>
+            <div
+              ref={hit?.chartId === chart.id ? hitRef : undefined}
+              className="rounded-xl overflow-hidden shadow-md border border-gray-200"
+            >
+              <ChartImage chart={chart} hit={hit} />
+            </div>
+          </div>
+        ))}
       </main>
 
-      <footer className="text-center text-xs text-gray-400 py-4">
-        Gingko Brand — 100% Polyester — {threads.length} màu
+      <footer className="text-center text-xs text-gray-400 py-3">
+        Gingko Brand — 100% Polyester
       </footer>
     </div>
   );
