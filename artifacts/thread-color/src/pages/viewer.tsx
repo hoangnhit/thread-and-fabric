@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useLocation } from "wouter";
 
 /* ─── TYPES ─────────────────────────────────────────────────────── */
@@ -584,6 +584,25 @@ export default function Viewer() {
   const [showSpmMenu, setShowSpmMenu] = useState(false);
   const [animMaxIdx, setAnimMaxIdx] = useState(Infinity);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [activeStep, setActiveStep] = useState<number>(-1);
+
+  // Compute the color-change sequence (mirrors renderDesign segment logic)
+  const stitchSequence = useMemo(() => {
+    if (!design) return [];
+    const { stitches } = design;
+    const segs: { ci: number; stitchCount: number; endIdx: number }[] = [];
+    let segStart = 0, currentCI = 0;
+    for (let i = 0; i < stitches.length; i++) {
+      const s = stitches[i];
+      if (s.type === "COLOR_CHANGE" || i === stitches.length - 1) {
+        const sc = stitches.slice(segStart, i + 1).filter(x => x.type === "STITCH").length;
+        if (sc > 0) segs.push({ ci: currentCI, stitchCount: sc, endIdx: i });
+        segStart = i + 1;
+        currentCI = s.colorIndex + (s.type === "COLOR_CHANGE" ? 1 : 0);
+      }
+    }
+    return segs;
+  }, [design]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scaleRef = useRef(1);
@@ -696,8 +715,23 @@ export default function Viewer() {
     const idx = animMaxIdx===Infinity ? design.stitches.length-1 : animMaxIdx;
     let next = idx+1;
     while (next<design.stitches.length && design.stitches[next].type!=="COLOR_CHANGE") next++;
-    setAnimMaxIdx(next>=design.stitches.length ? Infinity : next);
+    const newIdx = next>=design.stitches.length ? Infinity : next;
+    setAnimMaxIdx(newIdx);
     animIdxRef.current = next;
+    // sync active step highlight
+    const stepIdx = stitchSequence.findIndex(s => s.endIdx >= (newIdx===Infinity ? Infinity : next));
+    setActiveStep(stepIdx);
+  };
+
+  const jumpToStep = (stepIdx: number) => {
+    if (!design) return;
+    setIsPlaying(false);
+    const seg = stitchSequence[stepIdx];
+    if (!seg) return;
+    const endIdx = stepIdx === stitchSequence.length - 1 ? Infinity : seg.endIdx;
+    animIdxRef.current = seg.endIdx;
+    setAnimMaxIdx(endIdx);
+    setActiveStep(stepIdx);
   };
 
   const downloadPNG = () => {
@@ -860,6 +894,63 @@ export default function Viewer() {
                     style={{marginTop:10,background:"none",border:"none",color:"#4A9EFF",fontSize:11,cursor:"pointer",padding:0}}>
                     Reset màu gốc
                   </button>
+                </div>
+
+                {/* ── Stitch Order panel ── */}
+                <div style={{background:"#131929",border:"1px solid #1e2a42",borderRadius:10,overflow:"hidden"}}>
+                  <div style={{padding:"10px 14px 8px",borderBottom:"1px solid #1e2a42",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <span style={{fontSize:11,fontWeight:700,color:"#4A9EFF",letterSpacing:0.8}}>THỨ TỰ BƯỚC THÊU</span>
+                    <span style={{fontSize:10,color:"#4a5580"}}>{stitchSequence.length} màu</span>
+                  </div>
+                  <div style={{maxHeight:260,overflowY:"auto",overflowX:"hidden"}}>
+                    {stitchSequence.map((seg, i) => {
+                      const color = editedColors[seg.ci] ?? "#888";
+                      const isActive = activeStep === i;
+                      const isDone = animMaxIdx === Infinity
+                        ? true
+                        : (animMaxIdx >= seg.endIdx);
+                      return (
+                        <div key={i} onClick={() => jumpToStep(i)}
+                          style={{
+                            display:"flex",alignItems:"center",gap:8,
+                            padding:"7px 12px",cursor:"pointer",
+                            background: isActive ? "rgba(74,158,255,0.12)" : "transparent",
+                            borderLeft: isActive ? "3px solid #4A9EFF" : "3px solid transparent",
+                            opacity: isDone ? 1 : 0.45,
+                            transition:"background 0.1s,opacity 0.2s",
+                          }}
+                          onMouseEnter={e=>(e.currentTarget.style.background = isActive ? "rgba(74,158,255,0.16)" : "rgba(255,255,255,0.04)")}
+                          onMouseLeave={e=>(e.currentTarget.style.background = isActive ? "rgba(74,158,255,0.12)" : "transparent")}>
+
+                          {/* Step number */}
+                          <span style={{fontSize:10,color:"#4a5580",width:14,textAlign:"right",flexShrink:0,fontWeight:600}}>
+                            {i+1}
+                          </span>
+
+                          {/* Color swatch */}
+                          <div style={{width:18,height:18,borderRadius:4,background:color,flexShrink:0,
+                            border:"1.5px solid rgba(255,255,255,0.18)",boxShadow:"0 1px 3px rgba(0,0,0,0.5)"}}/>
+
+                          {/* Color hex */}
+                          <span style={{fontSize:10,color:"#9ca3af",flex:1,fontFamily:"monospace",letterSpacing:0.3}}>
+                            {color.toUpperCase()}
+                          </span>
+
+                          {/* Stitch count */}
+                          <span style={{fontSize:10,color: isDone ? "#4A9EFF" : "#4a5580",fontWeight:600,flexShrink:0}}>
+                            {seg.stitchCount.toLocaleString()}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* Show all button */}
+                  <div style={{padding:"6px 12px",borderTop:"1px solid #1e2a42"}}>
+                    <button onClick={()=>{setAnimMaxIdx(Infinity);animIdxRef.current=design!.stitches.length-1;setActiveStep(-1);}}
+                      style={{width:"100%",background:"none",border:"none",color:"#4a5580",fontSize:10,cursor:"pointer",padding:"2px 0",textAlign:"center",letterSpacing:0.5}}>
+                      Hiện toàn bộ
+                    </button>
+                  </div>
                 </div>
 
                 {/* Fit button */}
