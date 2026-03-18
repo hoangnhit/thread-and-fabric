@@ -244,8 +244,9 @@ export default function Fabrics() {
         <div style={{ position: "absolute", inset: 0, background: "rgba(4,20,12,0.62)", zIndex: 0 }} />
         <div style={{ position: "absolute", top: -40, right: -40, width: 180, height: 180, borderRadius: "50%", background: "rgba(255,255,255,0.04)", zIndex: 0 }} />
         <div style={{ maxWidth: 640, margin: "0 auto", position: "relative", zIndex: 1, textAlign: "center" }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.12)", borderRadius: 20, padding: "4px 14px", marginBottom: 14, fontSize: 11, color: "rgba(255,255,255,0.85)", letterSpacing: "0.1em", fontWeight: 700 }}>
-            🎩 THIÊN ĐỨC HATS
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "rgba(255,255,255,0.12)", borderRadius: 20, padding: "4px 14px", marginBottom: 14, fontSize: 11, color: "rgba(255,255,255,0.85)", letterSpacing: "0.1em", fontWeight: 700 }}>
+            <img src={`${import.meta.env.BASE_URL}thienduc-logo.png`} alt="logo" style={{ width: 18, height: 18, objectFit: "contain", borderRadius: 3 }} />
+            THIÊN ĐỨC HATS
           </div>
           <h1 style={{ margin: "0 0 6px", fontSize: 26, fontWeight: 800, color: "white", letterSpacing: "-0.02em" }}>
             Danh Mục Vải
