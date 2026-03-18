@@ -1,5 +1,34 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { threadColors, rows, rowLabels, type ThreadColor } from "@/data/threads";
+import { threadColors, rows, type ThreadColor } from "@/data/threads";
+
+// Natural image dimensions (after EXIF rotation)
+const IMG_W = 1280;
+const IMG_H = 960;
+
+// Y-center of each row in natural pixels
+const ROW_Y: Record<string, number> = {
+  O: 107,
+  N: 269,
+  M: 421,
+  L: 587,
+  K: 747,
+};
+
+// Row label names
+const ROW_LABEL: Record<string, string> = {
+  O: "Hàng O",
+  N: "Hàng N",
+  M: "Hàng M",
+  L: "Hàng L",
+  K: "Hàng K",
+};
+
+// Swatch X bounds in natural pixels (skip the "100% Polyester" label on right)
+const SWATCH_X1 = 358;
+const SWATCH_X2 = 1138;
+
+// Height of each row strip shown in the UI (display pixels)
+const STRIP_H = 110;
 
 function hexToRgb(hex: string) {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -12,50 +41,80 @@ function colorDistance(hex1: string, hex2: string) {
   const c1 = hexToRgb(hex1);
   const c2 = hexToRgb(hex2);
   return Math.sqrt(
-    Math.pow(c1.r - c2.r, 2) +
-    Math.pow(c1.g - c2.g, 2) +
-    Math.pow(c1.b - c2.b, 2)
+    (c1.r - c2.r) ** 2 + (c1.g - c2.g) ** 2 + (c1.b - c2.b) ** 2
   );
 }
 
-function getContrastColor(hex: string) {
+function getContrast(hex: string) {
   const { r, g, b } = hexToRgb(hex);
-  const luma = 0.299 * r + 0.587 * g + 0.114 * b;
-  return luma > 140 ? "#000000" : "#ffffff";
+  return 0.299 * r + 0.587 * g + 0.114 * b > 140 ? "#000" : "#fff";
+}
+
+// Map a click X position (in a container of width W) to a swatch index (0–19)
+function xToSwatchIndex(relX: number, containerW: number): number {
+  const scale = containerW / IMG_W;
+  const x1 = SWATCH_X1 * scale;
+  const x2 = SWATCH_X2 * scale;
+  if (relX < x1 || relX > x2) return -1;
+  const idx = Math.floor(((relX - x1) / (x2 - x1)) * 20);
+  return Math.min(19, Math.max(0, idx));
+}
+
+interface SelectedInfo {
+  thread: ThreadColor;
+  row: string;
+  idx: number;
 }
 
 export default function Home() {
   const [search, setSearch] = useState("");
-  const [selectedRow, setSelectedRow] = useState<string>("all");
-  const [pickedColor, setPickedColor] = useState<string | null>(null);
-  const [pickedPosition, setPickedPosition] = useState<{ x: number; y: number } | null>(null);
-  const [closestThreads, setClosestThreads] = useState<Array<ThreadColor & { distance: number }>>([]);
-  const [hoveredCode, setHoveredCode] = useState<string | null>(null);
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [isPickerMode, setIsPickerMode] = useState(false);
+  const [activeRow, setActiveRow] = useState<string>("all");
+  const [selected, setSelected] = useState<SelectedInfo | null>(null);
+  const [pickerRow, setPickerRow] = useState<string | null>(null);
+  const [pickedHex, setPickedHex] = useState<string | null>(null);
+  const [closest, setClosest] = useState<Array<ThreadColor & { dist: number }>>([]);
 
+  // For full-image pixel picker
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [pickerMode, setPickerMode] = useState(false);
+  const [pickedPos, setPickedPos] = useState<{ x: number; y: number } | null>(null);
 
-  const filteredColors = threadColors.filter((t) => {
-    const matchesSearch = search === "" || t.code.toLowerCase().includes(search.toLowerCase());
-    const matchesRow = selectedRow === "all" || t.row === selectedRow;
-    return matchesSearch && matchesRow;
-  });
-
-  const drawImageOnCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
+  const drawCanvas = useCallback(() => {
+    const c = canvasRef.current;
     const img = imgRef.current;
-    if (!canvas || !img) return;
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.drawImage(img, 0, 0);
+    if (!c || !img) return;
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    c.getContext("2d")?.drawImage(img, 0, 0);
   }, []);
 
-  const pickColorFromCanvas = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isPickerMode) return;
+  const filteredRows = activeRow === "all" ? rows : [activeRow];
+
+  // Search filter: highlight matching thread
+  const searchMatch = search.trim().toLowerCase();
+  const matchingCode = threadColors.find(
+    (t) => t.code.toLowerCase() === searchMatch
+  );
+
+  function handleStripClick(
+    e: React.MouseEvent<HTMLDivElement>,
+    row: string,
+    rowColors: ThreadColor[]
+  ) {
+    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+    const relX = e.clientX - rect.left;
+    const containerW = rect.width;
+    const idx = xToSwatchIndex(relX, containerW);
+    if (idx < 0 || idx >= rowColors.length) return;
+    const thread = rowColors[idx];
+    setSelected({ thread, row, idx });
+    setSearch(thread.code);
+  }
+
+  function handleCanvasPick(e: React.MouseEvent<HTMLCanvasElement>) {
+    if (!pickerMode) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -63,164 +122,259 @@ export default function Home() {
     const scaleY = canvas.height / rect.height;
     const x = Math.floor((e.clientX - rect.left) * scaleX);
     const y = Math.floor((e.clientY - rect.top) * scaleY);
-
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const pixel = ctx.getImageData(x, y, 1, 1).data;
-    const hex = `#${pixel[0].toString(16).padStart(2, "0")}${pixel[1].toString(16).padStart(2, "0")}${pixel[2].toString(16).padStart(2, "0")}`;
-    setPickedColor(hex);
-    setPickedPosition({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-
+    const px = ctx.getImageData(x, y, 1, 1).data;
+    const hex = `#${px[0].toString(16).padStart(2, "0")}${px[1].toString(16).padStart(2, "0")}${px[2].toString(16).padStart(2, "0")}`;
+    setPickedHex(hex);
+    setPickedPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
     const sorted = threadColors
-      .map((t) => ({ ...t, distance: colorDistance(hex, t.hex) }))
-      .sort((a, b) => a.distance - b.distance)
+      .map((t) => ({ ...t, dist: colorDistance(hex, t.hex) }))
+      .sort((a, b) => a.dist - b.dist)
       .slice(0, 5);
-    setClosestThreads(sorted);
-  }, [isPickerMode]);
+    setClosest(sorted);
+  }
+
+  const displayRows = filteredRows.filter((r) => {
+    const rowColors = threadColors.filter((t) => t.row === r);
+    if (searchMatch) return rowColors.some((t) => t.code.toLowerCase().includes(searchMatch));
+    return true;
+  });
 
   return (
-    <div className="min-h-screen bg-[#f5f7f5] font-sans">
+    <div className="min-h-screen bg-[#f4f6f4] font-sans">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 6v6l4 2" />
-              </svg>
-            </div>
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="w-8 h-8 rounded-full bg-green-700 flex items-center justify-center text-white font-bold text-sm">G</div>
             <div>
-              <h1 className="text-base font-bold text-gray-900 leading-tight">Gingko Thread Color</h1>
-              <p className="text-xs text-gray-500 leading-tight">Tra cứu màu chỉ thêu</p>
+              <h1 className="text-sm font-bold text-gray-900 leading-tight">Gingko Thread Color</h1>
+              <p className="text-[11px] text-gray-400 leading-tight">Tra cứu màu chỉ thêu</p>
             </div>
           </div>
 
-          {/* Search */}
-          <div className="flex-1 min-w-[180px] max-w-sm relative">
-            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <div className="flex-1 min-w-[160px] max-w-xs relative">
+            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
             </svg>
             <input
               type="text"
-              placeholder="Tìm mã chỉ (VD: G578, G904...)"
+              placeholder="Tìm mã chỉ (G578, G904...)"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setSelected(null); }}
               className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
             />
           </div>
 
-          {/* Row filter */}
-          <div className="flex gap-1 flex-wrap">
-            <button
-              onClick={() => setSelectedRow("all")}
-              className={`px-3 py-1 text-xs rounded-full font-medium border transition-colors ${selectedRow === "all" ? "bg-green-600 text-white border-green-600" : "bg-white text-gray-600 border-gray-300 hover:border-green-400"}`}
-            >
-              Tất cả
-            </button>
-            {rows.map((r) => (
+          <div className="flex gap-1">
+            {["all", ...rows].map((r) => (
               <button
                 key={r}
-                onClick={() => setSelectedRow(r)}
-                className={`px-3 py-1 text-xs rounded-full font-medium border transition-colors ${selectedRow === r ? "bg-green-600 text-white border-green-600" : "bg-white text-gray-600 border-gray-300 hover:border-green-400"}`}
+                onClick={() => setActiveRow(r)}
+                className={`px-3 py-1 text-xs rounded-full font-semibold border transition-colors ${activeRow === r ? "bg-green-700 text-white border-green-700" : "bg-white text-gray-600 border-gray-300 hover:border-green-400"}`}
               >
-                {r}
+                {r === "all" ? "Tất cả" : r}
               </button>
             ))}
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-6 space-y-8">
+      <div className="max-w-5xl mx-auto px-4 py-5 space-y-5">
 
-        {/* Image Picker Section */}
-        <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
+        {/* Search result highlight */}
+        {matchingCode && (
+          <div className="bg-white rounded-xl shadow-sm border border-green-200 p-4 flex items-center gap-4">
+            <div
+              className="w-16 h-16 rounded-xl shadow border border-black/10 shrink-0"
+              style={{ backgroundColor: matchingCode.hex }}
+            />
             <div>
-              <h2 className="font-semibold text-gray-800 text-sm">Bảng màu chỉ thêu Gingko</h2>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {isPickerMode ? "🎯 Đang chọn màu – Nhấp vào bất kỳ ô màu nào để tra cứu" : "Bật chế độ chọn màu để nhấp vào hình và tìm chỉ tương đương"}
-              </p>
+              <p className="text-lg font-bold text-gray-900">{matchingCode.code}</p>
+              <p className="text-sm text-gray-500">Hàng {matchingCode.row}</p>
+              <p className="font-mono text-sm text-green-700 font-semibold mt-0.5">{matchingCode.hex.toUpperCase()}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Per-row image strips */}
+        {displayRows.map((row) => {
+          const rowColors = threadColors.filter((t) => t.row === row);
+          const visibleColors = searchMatch
+            ? rowColors.filter((t) => t.code.toLowerCase().includes(searchMatch))
+            : rowColors;
+
+          // object-position Y percent to center on the row
+          const yPct = ((ROW_Y[row] / IMG_H) * 100).toFixed(1);
+
+          // Swatch label positions: from SWATCH_X1/IMG_W to SWATCH_X2/IMG_W, evenly spaced 20 items
+          const x1Pct = (SWATCH_X1 / IMG_W) * 100;
+          const x2Pct = (SWATCH_X2 / IMG_W) * 100;
+          const step = (x2Pct - x1Pct) / 20;
+
+          return (
+            <section key={row} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              {/* Row header */}
+              <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
+                <span className="text-sm font-semibold text-gray-800">{ROW_LABEL[row]}</span>
+                <span className="text-xs text-gray-400">{rowColors.length} màu</span>
+              </div>
+
+              {/* Image strip — cropped to this row */}
+              <div
+                className="relative w-full cursor-pointer select-none"
+                style={{ height: STRIP_H }}
+                onClick={(e) => handleStripClick(e, row, rowColors)}
+                title="Nhấp vào ô màu để tra cứu"
+              >
+                <img
+                  src="/thread-color/thread-chart.png"
+                  alt={`Hàng ${row}`}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    objectPosition: `center ${yPct}%`,
+                    display: "block",
+                    pointerEvents: "none",
+                  }}
+                />
+
+                {/* Hover overlay hint */}
+                <div className="absolute inset-0 bg-transparent hover:bg-black/5 transition-colors" />
+
+                {/* Highlight selected swatch */}
+                {selected && selected.row === row && (
+                  <div
+                    className="absolute top-0 bottom-0 border-2 border-white shadow-lg"
+                    style={{
+                      left: `${x1Pct + selected.idx * step}%`,
+                      width: `${step}%`,
+                      boxSizing: "border-box",
+                      outline: "2px solid #16a34a",
+                    }}
+                  />
+                )}
+
+                {/* Highlight search match */}
+                {searchMatch && rowColors.map((t, idx) =>
+                  t.code.toLowerCase().includes(searchMatch) ? (
+                    <div
+                      key={t.code}
+                      className="absolute top-0 bottom-0 border-2 border-yellow-400 shadow-lg pointer-events-none"
+                      style={{
+                        left: `${x1Pct + idx * step}%`,
+                        width: `${step}%`,
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  ) : null
+                )}
+              </div>
+
+              {/* Thread code labels below the strip — aligned to swatches */}
+              <div className="relative" style={{ height: 28 }}>
+                {rowColors.map((t, idx) => {
+                  const centerPct = x1Pct + idx * step + step / 2;
+                  const isMatch = searchMatch && t.code.toLowerCase().includes(searchMatch);
+                  const isSel = selected?.row === row && selected?.idx === idx;
+                  return (
+                    <button
+                      key={t.code}
+                      onClick={() => {
+                        setSelected({ thread: t, row, idx });
+                        setSearch(t.code);
+                      }}
+                      title={t.code}
+                      className="absolute top-0 transform -translate-x-1/2 flex flex-col items-center"
+                      style={{ left: `${centerPct}%`, paddingTop: 4 }}
+                    >
+                      <span
+                        className={`text-[9px] font-medium leading-none whitespace-nowrap ${
+                          isMatch ? "text-yellow-600 font-bold" :
+                          isSel ? "text-green-700 font-bold" :
+                          "text-gray-500"
+                        }`}
+                      >
+                        {t.code}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Selected thread info */}
+              {selected && selected.row === row && (
+                <div className="mx-4 mb-4 mt-1 rounded-xl border border-green-200 bg-green-50 p-3 flex items-center gap-3">
+                  <div
+                    className="w-12 h-12 rounded-lg border border-black/10 shadow shrink-0"
+                    style={{ backgroundColor: selected.thread.hex }}
+                  />
+                  <div>
+                    <p className="font-bold text-gray-900 text-base">{selected.thread.code}</p>
+                    <p className="text-xs text-gray-500">Hàng {selected.thread.row} · Vị trí {selected.idx + 1}/20</p>
+                    <p className="font-mono text-sm text-green-700 font-semibold">{selected.thread.hex.toUpperCase()}</p>
+                  </div>
+                  <button
+                    onClick={() => setSelected(null)}
+                    className="ml-auto text-gray-400 hover:text-gray-600 text-lg"
+                  >×</button>
+                </div>
+              )}
+            </section>
+          );
+        })}
+
+        {displayRows.length === 0 && (
+          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+            <p className="text-gray-500">Không tìm thấy mã chỉ "<span className="font-semibold text-gray-800">{search}</span>"</p>
+            <button onClick={() => { setSearch(""); setSelected(null); }} className="mt-3 text-sm text-green-600 underline">Xóa tìm kiếm</button>
+          </div>
+        )}
+
+        {/* Full-image pixel picker */}
+        <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-gray-800">Chọn màu từ hình gốc</p>
+              <p className="text-xs text-gray-400">{pickerMode ? "🎯 Nhấp vào bất kỳ ô nào để tra chỉ tương đương" : "Bật để nhấp vào ảnh và tìm mã chỉ gần nhất"}</p>
             </div>
             <button
-              onClick={() => {
-                setIsPickerMode((v) => !v);
-                setPickedColor(null);
-                setClosestThreads([]);
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                isPickerMode
-                  ? "bg-green-600 text-white border-green-600 shadow-md"
-                  : "bg-white text-gray-700 border-gray-300 hover:border-green-400 hover:text-green-700"
-              }`}
+              onClick={() => { setPickerMode(v => !v); setPickedHex(null); setClosest([]); }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${pickerMode ? "bg-green-700 text-white border-green-700" : "bg-white text-gray-700 border-gray-300 hover:border-green-400"}`}
             >
-              <span>{isPickerMode ? "✅" : "🎨"}</span>
-              {isPickerMode ? "Đang chọn màu..." : "Chọn màu từ hình"}
+              {pickerMode ? "✅ Đang chọn..." : "🎨 Chọn màu"}
             </button>
           </div>
-
           <div className="relative">
-            {/* Hidden real image for loading */}
-            <img
-              ref={imgRef}
-              src="/thread-color/thread-chart.png"
-              alt="Gingko Thread Color Chart"
-              className="hidden"
-              onLoad={() => {
-                setImageLoaded(true);
-                drawImageOnCanvas();
-              }}
-            />
-
-            {/* Canvas for pixel picking */}
+            <img ref={imgRef} src="/thread-color/thread-chart.png" alt="" className="hidden" onLoad={() => { setImgLoaded(true); drawCanvas(); }} />
             <canvas
               ref={canvasRef}
-              onClick={pickColorFromCanvas}
-              className={`w-full block ${isPickerMode ? "cursor-crosshair" : "cursor-default"}`}
-              style={{ display: imageLoaded ? "block" : "none" }}
+              onClick={handleCanvasPick}
+              className={`w-full block ${pickerMode ? "cursor-crosshair" : "cursor-default"}`}
+              style={{ display: imgLoaded ? "block" : "none" }}
             />
-
-            {/* Fallback image (non-picker mode) */}
-            {!imageLoaded && (
-              <div className="flex items-center justify-center h-64 text-gray-400 text-sm">
-                Đang tải hình ảnh...
-              </div>
-            )}
-
-            {/* Picked color indicator */}
-            {isPickerMode && pickedColor && pickedPosition && (
-              <div
-                className="absolute pointer-events-none"
-                style={{ left: pickedPosition.x + 10, top: pickedPosition.y - 30 }}
-              >
-                <div
-                  className="w-8 h-8 rounded-full border-4 border-white shadow-lg"
-                  style={{ backgroundColor: pickedColor }}
-                />
+            {!imgLoaded && <div className="h-40 flex items-center justify-center text-gray-400 text-sm">Đang tải...</div>}
+            {pickerMode && pickedHex && pickedPos && (
+              <div className="absolute pointer-events-none" style={{ left: pickedPos.x + 12, top: pickedPos.y - 28 }}>
+                <div className="w-7 h-7 rounded-full border-4 border-white shadow-lg" style={{ backgroundColor: pickedHex }} />
               </div>
             )}
           </div>
-
-          {/* Closest threads result */}
-          {closestThreads.length > 0 && pickedColor && (
-            <div className="px-5 py-4 border-t border-gray-100 bg-gray-50">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-lg border-2 border-white shadow" style={{ backgroundColor: pickedColor }} />
-                <div>
-                  <p className="text-sm font-semibold text-gray-800">Màu đã chọn: <code className="font-mono text-green-700">{pickedColor.toUpperCase()}</code></p>
-                  <p className="text-xs text-gray-500">Chỉ thêu gần nhất:</p>
-                </div>
+          {closest.length > 0 && pickedHex && (
+            <div className="px-4 py-3 border-t border-gray-100 bg-gray-50">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 rounded-lg border border-white shadow" style={{ backgroundColor: pickedHex }} />
+                <p className="text-sm font-semibold text-gray-800">Màu chọn: <code className="font-mono text-green-700">{pickedHex.toUpperCase()}</code></p>
               </div>
               <div className="flex gap-2 flex-wrap">
-                {closestThreads.map((t, i) => (
-                  <div
-                    key={t.code}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${i === 0 ? "border-green-400 bg-green-50" : "border-gray-200 bg-white"}`}
-                  >
-                    <div className="w-7 h-7 rounded-md shadow-sm flex-shrink-0 border border-white" style={{ backgroundColor: t.hex }} />
+                {closest.map((t, i) => (
+                  <div key={t.code} className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl border ${i === 0 ? "border-green-400 bg-green-50" : "border-gray-200 bg-white"}`}>
+                    <div className="w-6 h-6 rounded shadow-sm border border-black/10" style={{ backgroundColor: t.hex }} />
                     <div>
                       <p className="text-xs font-bold text-gray-800">{t.code}</p>
-                      <p className="text-xs text-gray-500">Hàng {t.row} {i === 0 ? "✓ Gần nhất" : ""}</p>
+                      <p className="text-[10px] text-gray-400">Hàng {t.row}{i === 0 ? " · Gần nhất" : ""}</p>
                     </div>
                   </div>
                 ))}
@@ -228,76 +382,9 @@ export default function Home() {
             </div>
           )}
         </section>
-
-        {/* Color Grid per row */}
-        {(selectedRow === "all" ? rows : [selectedRow]).map((row) => {
-          const rowColors = filteredColors.filter((t) => t.row === row);
-          if (rowColors.length === 0) return null;
-          return (
-            <section key={row} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="px-5 py-3 border-b border-gray-100">
-                <h2 className="font-semibold text-gray-800 text-sm">{rowLabels[row]}</h2>
-                <p className="text-xs text-gray-500 mt-0.5">{rowColors.length} màu</p>
-              </div>
-              <div className="p-4">
-                <div className="flex flex-wrap gap-2">
-                  {rowColors.map((t) => (
-                    <div
-                      key={t.code}
-                      className={`group relative flex flex-col items-center cursor-pointer transition-transform hover:scale-110 hover:z-10 ${hoveredCode === t.code ? "scale-110 z-10" : ""}`}
-                      onMouseEnter={() => setHoveredCode(t.code)}
-                      onMouseLeave={() => setHoveredCode(null)}
-                      onClick={() => {
-                        setSearch(t.code);
-                        setSelectedRow("all");
-                      }}
-                    >
-                      {/* Color swatch */}
-                      <div
-                        className="w-10 h-14 rounded-md shadow-sm border border-black/10 flex items-end justify-center pb-1"
-                        style={{ backgroundColor: t.hex }}
-                      >
-                        <span
-                          className="text-[9px] font-bold leading-tight text-center px-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                          style={{ color: getContrastColor(t.hex) }}
-                        >
-                          {t.code}
-                        </span>
-                      </div>
-                      {/* Code label */}
-                      <span className="text-[9px] text-gray-600 mt-1 font-medium text-center w-10 truncate">{t.code}</span>
-
-                      {/* Tooltip */}
-                      {hoveredCode === t.code && (
-                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-xl z-50 pointer-events-none">
-                          <div className="font-bold">{t.code}</div>
-                          <div className="text-gray-300">Hàng {t.row}</div>
-                          <div className="font-mono text-green-400">{t.hex.toUpperCase()}</div>
-                          <div
-                            className="w-full h-4 rounded mt-1 border border-white/20"
-                            style={{ backgroundColor: t.hex }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
-          );
-        })}
-
-        {filteredColors.length === 0 && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
-            <div className="text-4xl mb-3">🔍</div>
-            <p className="text-gray-500 font-medium">Không tìm thấy mã chỉ "<span className="text-gray-800">{search}</span>"</p>
-            <p className="text-gray-400 text-sm mt-1">Thử tìm với mã khác hoặc chọn hàng khác</p>
-            <button onClick={() => { setSearch(""); setSelectedRow("all"); }} className="mt-4 text-sm text-green-600 underline">Xóa bộ lọc</button>
-          </div>
-        )}
       </div>
 
-      <footer className="text-center py-6 text-xs text-gray-400">
+      <footer className="text-center py-5 text-xs text-gray-400">
         Gingko Brand High-Grade Embroidery Thread · 100% Polyester
       </footer>
     </div>
