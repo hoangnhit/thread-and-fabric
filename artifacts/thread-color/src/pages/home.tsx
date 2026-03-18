@@ -36,28 +36,43 @@ const CHARTS = [
 
 type Hit = { chartId: "ae" | "pt"; col: string; row: number; code: string };
 
+const ALL_CODES: Hit[] = CHARTS.flatMap(chart =>
+  chart.columns.flatMap(col =>
+    col.codes.map((code, row) => ({ chartId: chart.id, col: col.name, row, code }))
+  )
+);
+
 function findCode(query: string): Hit | null {
   const q = query.trim().toUpperCase();
   if (!q) return null;
-  for (const chart of CHARTS) {
-    for (const col of chart.columns) {
-      const row = col.codes.findIndex(c => c.toUpperCase() === q);
-      if (row !== -1) return { chartId: chart.id, col: col.name, row, code: col.codes[row] };
-    }
-  }
-  return null;
+  return ALL_CODES.find(h => h.code.toUpperCase() === q) ?? null;
 }
 
-/* ─── HIGHLIGHT SLOT STYLES ─────────────────────────────────────── */
-const SLOTS = [
-  { color: "rgba(251,191,36,0.45)", border: "#f59e0b", glow: "rgba(245,158,11,0.7)", label: "#92400e", bg: "#fef3c7", bdg: "#fde68a", icon: "🟡", anim: "pulse-a" },
-  { color: "rgba(56,189,248,0.35)", border: "#0ea5e9", glow: "rgba(14,165,233,0.6)", label: "#075985", bg: "#e0f2fe", bdg: "#bae6fd", icon: "🔵", anim: "pulse-b" },
-];
+/** Extract potential thread codes from freeform text */
+function extractCodes(text: string): string[] {
+  const tokens = text.match(/[GOgo]?\d{3,4}|[GOgo]\d{3}/g) ?? [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const t of tokens) {
+    const upper = t.trim().toUpperCase();
+    if (upper.length >= 3 && !seen.has(upper)) {
+      seen.add(upper);
+      result.push(upper);
+    }
+  }
+  return result;
+}
 
-/* ─── CHART IMAGE WITH OVERLAY ───────────────────────────────────── */
-function ChartImage({
-  chart, pins,
-}: { chart: typeof CHARTS[0]; pins: (Hit | null)[] }) {
+type Mode = "single" | "compare" | "scan";
+
+/* ─── CHART IMAGE ──────────────────────────────────────────────── */
+const SLOT_STYLES = [
+  { fill: "rgba(251,191,36,0.4)", border: "#f59e0b", glow: "rgba(245,158,11,0.75)", anim: "pa" },
+  { fill: "rgba(56,189,248,0.35)", border: "#0ea5e9", glow: "rgba(14,165,233,0.65)", anim: "pb" },
+];
+const SCAN_STYLE = { fill: "rgba(251,191,36,0.4)", border: "#f59e0b", glow: "rgba(245,158,11,0.7)", anim: "pa" };
+
+function ChartImage({ chart, pins }: { chart: typeof CHARTS[0]; pins: { hit: Hit; slotStyle: typeof SLOT_STYLES[0] }[] }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
 
@@ -74,11 +89,9 @@ function ChartImage({
     return () => ro.disconnect();
   }, []);
 
-  const { rotateDeg } = CHART_CONFIG[chart.id];
-
   return (
     <div style={{ overflow: "hidden", position: "relative", borderRadius: 14 }}>
-      <div ref={wrapRef} style={{ position: "relative", transform: `rotate(${rotateDeg}deg)`, transformOrigin: "center center" }}>
+      <div ref={wrapRef} style={{ position: "relative", transform: `rotate(${CHART_CONFIG[chart.id].rotateDeg}deg)`, transformOrigin: "center center" }}>
         <img
           src={chart.file} alt={chart.label}
           style={{ display: "block", width: "100%", userSelect: "none" }}
@@ -87,206 +100,277 @@ function ChartImage({
             if (img) setSize({ w: img.offsetWidth, h: img.offsetHeight });
           }}
         />
-        {size.w > 0 && pins.map((pin, slotIdx) => {
-          if (!pin || pin.chartId !== chart.id) return null;
-          const col = chart.columns.find(c => c.name === pin.col);
-          if (!col) return null;
-          const cfg = CHART_CONFIG[chart.id];
-          const cx = col.xPct * size.w;
-          const cy = rowYPct(chart.id, pin.row) * size.h;
-          const bw = (cfg.boxW / cfg.imageW) * size.w;
-          const bh = (cfg.rowH * 0.85 / cfg.imageH) * size.h;
-          const s = SLOTS[slotIdx];
-          return (
-            <div key={`pin-${slotIdx}`} style={{
-              position: "absolute",
-              left: cx - bw / 2, top: cy - bh / 2,
-              width: bw, height: bh,
-              borderRadius: 6,
-              backgroundColor: s.color,
-              boxShadow: `0 0 0 2.5px ${s.border}, 0 0 14px ${s.glow}`,
-              pointerEvents: "none",
-              animation: `${s.anim} 1.4s ease-in-out infinite`,
-            }} />
-          );
-        })}
+        {size.w > 0 && pins
+          .filter(p => p.hit.chartId === chart.id)
+          .map(({ hit, slotStyle }, idx) => {
+            const col = chart.columns.find(c => c.name === hit.col);
+            if (!col) return null;
+            const cfg = CHART_CONFIG[chart.id];
+            const cx = col.xPct * size.w;
+            const cy = rowYPct(chart.id, hit.row) * size.h;
+            const bw = (cfg.boxW / cfg.imageW) * size.w;
+            const bh = (cfg.rowH * 0.85 / cfg.imageH) * size.h;
+            return (
+              <div key={`pin-${idx}`} style={{
+                position: "absolute",
+                left: cx - bw / 2, top: cy - bh / 2,
+                width: bw, height: bh, borderRadius: 6,
+                backgroundColor: slotStyle.fill,
+                boxShadow: `0 0 0 2.5px ${slotStyle.border}, 0 0 14px ${slotStyle.glow}`,
+                pointerEvents: "none",
+                animation: `${slotStyle.anim} 1.4s ease-in-out infinite`,
+              }} />
+            );
+          })}
       </div>
     </div>
   );
 }
 
-/* ─── SEARCH INPUT ───────────────────────────────────────────────── */
-function SearchInput({
-  value, onChange, onClear, placeholder, slotIdx, focused, onFocus, onBlur,
-}: {
-  value: string; onChange: (v: string) => void; onClear: () => void;
-  placeholder: string; slotIdx: number; focused: boolean;
-  onFocus: () => void; onBlur: () => void;
-}) {
-  const s = SLOTS[slotIdx];
-  return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: 10,
-      background: "white",
-      border: `2px solid ${focused ? s.border : "#e5e7eb"}`,
-      borderRadius: 12, padding: "10px 14px",
-      boxShadow: focused ? `0 0 0 4px ${s.color}` : "0 1px 4px rgba(0,0,0,0.07)",
-      transition: "all 0.2s",
-    }}>
-      <span style={{ fontSize: 16 }}>{s.icon}</span>
-      <input
-        type="search"
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        onFocus={onFocus}
-        onBlur={onBlur}
-        placeholder={placeholder}
-        style={{
-          flex: 1, border: "none", outline: "none",
-          fontSize: 15, color: "#111", background: "transparent",
-          fontFamily: "'SF Mono', 'Fira Code', monospace", fontWeight: 600,
-        }}
-      />
-      {value && (
-        <button onClick={onClear} style={{
-          border: "none", background: "#f3f4f6", color: "#6b7280",
-          borderRadius: "50%", width: 22, height: 22, cursor: "pointer",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 12, padding: 0, flexShrink: 0,
-        }}>✕</button>
-      )}
-    </div>
-  );
-}
-
-/* ─── MAIN ───────────────────────────────────────────────────────── */
+/* ─── MAIN ──────────────────────────────────────────────────────── */
 export default function Home() {
-  const [queries, setQueries] = useState(["", ""]);
-  const [focused, setFocused] = useState<number | null>(null);
+  const [mode, setMode] = useState<Mode>("single");
+  const [q1, setQ1] = useState("");
+  const [q2, setQ2] = useState("");
+  const [scanText, setScanText] = useState("");
+  const [foc1, setFoc1] = useState(false);
+  const [foc2, setFoc2] = useState(false);
   const hitRef = useRef<HTMLDivElement | null>(null);
 
-  const hits = queries.map(q => findCode(q));
-  const activeHit = hits.find(Boolean) ?? null;
+  // hits
+  const hit1 = findCode(q1);
+  const hit2 = mode === "compare" ? findCode(q2) : null;
 
-  // scroll to first result
+  // scan results
+  const scanCodes = mode === "scan" ? extractCodes(scanText) : [];
+  const scanFound = scanCodes.map(c => findCode(c)).filter(Boolean) as Hit[];
+  const scanMissed = scanCodes.filter(c => !findCode(c));
+
+  // build pins array
+  const pins: { hit: Hit; slotStyle: typeof SLOT_STYLES[0] }[] = [];
+  if (mode === "single" || mode === "compare") {
+    if (hit1) pins.push({ hit: hit1, slotStyle: SLOT_STYLES[0] });
+    if (hit2) pins.push({ hit: hit2, slotStyle: SLOT_STYLES[1] });
+  } else {
+    scanFound.forEach(h => pins.push({ hit: h, slotStyle: SCAN_STYLE }));
+  }
+
+  const firstHit = pins[0]?.hit ?? null;
   useEffect(() => {
-    if (activeHit) {
+    if (firstHit) {
       setTimeout(() => hitRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 200);
     }
-  }, [activeHit?.chartId, activeHit?.col, activeHit?.row]);
+  }, [firstHit?.chartId, firstHit?.col, firstHit?.row]);
 
-  const update = useCallback((i: number, v: string) => {
-    setQueries(qs => { const n = [...qs]; n[i] = v; return n; });
+  const switchMode = useCallback((m: Mode) => {
+    setMode(m);
+    setQ1(""); setQ2(""); setScanText("");
   }, []);
 
-  const comparing = hits[0] && hits[1];
+  /* pill button style */
+  const pill = (active: boolean, color = "#059669") => ({
+    padding: "7px 16px", borderRadius: 20, border: "none", cursor: "pointer",
+    fontSize: 12, fontWeight: 700, letterSpacing: "0.03em",
+    background: active ? color : "#f1f5f9",
+    color: active ? "white" : "#64748b",
+    transition: "all 0.18s",
+    whiteSpace: "nowrap" as const,
+  });
+
+  const inputBox = (focused: boolean, accent = "#f59e0b") => ({
+    display: "flex", alignItems: "center", gap: 10,
+    background: "white",
+    border: `2px solid ${focused ? accent : "#e5e7eb"}`,
+    borderRadius: 12, padding: "11px 14px",
+    boxShadow: focused ? `0 0 0 4px ${accent}30` : "0 1px 4px rgba(0,0,0,0.07)",
+    transition: "all 0.2s",
+  });
 
   return (
     <div style={{ minHeight: "100vh", background: "#f8fafc", fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif" }}>
 
-      {/* ── HERO HEADER ── */}
+      {/* ── HERO ── */}
       <div style={{
         background: "linear-gradient(160deg, #064e3b 0%, #065f46 40%, #059669 100%)",
-        padding: "28px 20px 48px",
-        position: "relative", overflow: "hidden",
+        padding: "28px 20px 48px", position: "relative", overflow: "hidden",
       }}>
         <div style={{ position: "absolute", top: -40, right: -40, width: 180, height: 180, borderRadius: "50%", background: "rgba(255,255,255,0.04)" }} />
         <div style={{ position: "absolute", bottom: -20, left: 20, width: 100, height: 100, borderRadius: "50%", background: "rgba(255,255,255,0.05)" }} />
-        <div style={{ position: "absolute", top: 20, left: "30%", width: 60, height: 60, borderRadius: "50%", background: "rgba(255,255,255,0.04)" }} />
         <div style={{ maxWidth: 640, margin: "0 auto", position: "relative", zIndex: 1, textAlign: "center" }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "rgba(255,255,255,0.12)", borderRadius: 20, padding: "4px 12px", marginBottom: 14, fontSize: 11, color: "rgba(255,255,255,0.8)", letterSpacing: "0.1em", fontWeight: 600 }}>
-            🧵 &nbsp;GINGKO BRAND
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.12)", borderRadius: 20, padding: "4px 14px", marginBottom: 14, fontSize: 11, color: "rgba(255,255,255,0.85)", letterSpacing: "0.1em", fontWeight: 700 }}>
+            🧵 GINGKO BRAND
           </div>
-          <h1 style={{ margin: "0 0 6px", fontSize: 26, fontWeight: 800, color: "white", letterSpacing: "-0.02em", lineHeight: 1.2 }}>
+          <h1 style={{ margin: "0 0 6px", fontSize: 26, fontWeight: 800, color: "white", letterSpacing: "-0.02em" }}>
             Tra Cứu Màu Chỉ Thêu
           </h1>
-          <p style={{ margin: 0, fontSize: 13, color: "rgba(255,255,255,0.65)", fontWeight: 400 }}>
+          <p style={{ margin: 0, fontSize: 13, color: "rgba(255,255,255,0.65)" }}>
             High-Grade Embroidery Thread · 100% Polyester
           </p>
         </div>
       </div>
 
-      {/* ── SEARCH CARD (floats over hero) ── */}
+      {/* ── MAIN CARD ── */}
       <div style={{ maxWidth: 640, margin: "-28px auto 0", padding: "0 16px", position: "relative", zIndex: 10 }}>
         <div style={{
           background: "white", borderRadius: 20, padding: 20,
-          boxShadow: "0 8px 40px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.06)",
+          boxShadow: "0 8px 40px rgba(0,0,0,0.13), 0 2px 8px rgba(0,0,0,0.06)",
         }}>
-          <p style={{ margin: "0 0 14px", fontSize: 12, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-            Tìm kiếm mã màu
-          </p>
 
-          {/* Row 1: single search */}
-          <SearchInput
-            value={queries[0]} onChange={v => update(0, v)} onClear={() => update(0, "")}
-            placeholder="Mã màu 1 — vd: G622, 5860..."
-            slotIdx={0} focused={focused === 0}
-            onFocus={() => setFocused(0)} onBlur={() => setFocused(null)}
-          />
-
-          {/* Row 2: compare search */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "10px 0" }}>
-            <div style={{ flex: 1, height: 1, background: "#f1f5f9" }} />
-            <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600, whiteSpace: "nowrap" }}>SO SÁNH VỚI</span>
-            <div style={{ flex: 1, height: 1, background: "#f1f5f9" }} />
+          {/* Mode switcher */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
+            <button style={pill(mode === "single")} onClick={() => switchMode("single")}>🔍 Tìm mã</button>
+            <button style={pill(mode === "compare", "#0ea5e9")} onClick={() => switchMode("compare")}>↔️ So sánh 2 mã</button>
+            <button style={pill(mode === "scan", "#7c3aed")} onClick={() => switchMode("scan")}>📋 Quét danh sách</button>
           </div>
-          <SearchInput
-            value={queries[1]} onChange={v => update(1, v)} onClear={() => update(1, "")}
-            placeholder="Mã màu 2 — vd: G826, 9030..."
-            slotIdx={1} focused={focused === 1}
-            onFocus={() => setFocused(1)} onBlur={() => setFocused(null)}
-          />
 
-          {/* Results row */}
-          {(hits[0] || hits[1] || queries.some(Boolean)) && (
-            <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
-              {[0, 1].map(i => {
-                const q = queries[i];
-                const h = hits[i];
-                const s = SLOTS[i];
-                if (!q) return null;
-                return (
-                  <div key={i} style={{
-                    flex: 1, minWidth: 120,
-                    background: h ? s.bg : "#fef2f2",
-                    border: `1.5px solid ${h ? s.bdg : "#fecaca"}`,
-                    borderRadius: 10, padding: "8px 12px",
-                    display: "flex", alignItems: "center", gap: 8,
-                  }}>
-                    <span style={{ fontSize: 15 }}>{h ? "✓" : "✗"}</span>
-                    <div>
-                      {h ? (
-                        <>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: s.label, fontFamily: "monospace" }}>{h.code}</div>
-                          <div style={{ fontSize: 11, color: "#6b7280" }}>Cột {h.col} · Hàng {h.row + 1}</div>
-                        </>
-                      ) : (
-                        <div style={{ fontSize: 12, color: "#dc2626" }}>Không tìm thấy &ldquo;{q}&rdquo;</div>
-                      )}
+          {/* ── SINGLE MODE ── */}
+          {mode === "single" && (
+            <>
+              <div style={inputBox(foc1)}>
+                <span style={{ fontSize: 16 }}>🟡</span>
+                <input
+                  autoFocus
+                  type="search" value={q1}
+                  onChange={e => setQ1(e.target.value)}
+                  onFocus={() => setFoc1(true)} onBlur={() => setFoc1(false)}
+                  placeholder="Nhập mã màu: G622, 5860, 9030..."
+                  style={{ flex: 1, border: "none", outline: "none", fontSize: 16, color: "#111", background: "transparent", fontFamily: "monospace", fontWeight: 600 }}
+                />
+                {q1 && <button onClick={() => setQ1("")} style={{ border: "none", background: "#f3f4f6", color: "#6b7280", borderRadius: "50%", width: 22, height: 22, cursor: "pointer", fontSize: 12, padding: 0 }}>✕</button>}
+              </div>
+              {q1 && (
+                <div style={{ marginTop: 12 }}>
+                  {hit1 ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#fef3c7", border: "1.5px solid #fde68a", borderRadius: 10, padding: "10px 14px" }}>
+                      <span style={{ fontSize: 20 }}>✅</span>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#92400e", fontFamily: "monospace" }}>{hit1.code}</div>
+                        <div style={{ fontSize: 12, color: "#78716c" }}>Cột <b>{hit1.col}</b> · Hàng <b>{hit1.row + 1}</b> · {hit1.chartId === "ae" ? "Bảng A–E" : "Bảng P–T"}</div>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  ) : (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#fef2f2", border: "1.5px solid #fecaca", borderRadius: 10, padding: "10px 14px" }}>
+                      <span style={{ fontSize: 20 }}>❌</span>
+                      <div style={{ fontSize: 13, color: "#dc2626" }}>Không tìm thấy mã &ldquo;{q1}&rdquo;</div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           )}
 
-          {/* Compare banner */}
-          {comparing && (
-            <div style={{
-              marginTop: 12,
-              background: "linear-gradient(135deg, #fef3c7, #e0f2fe)",
-              border: "1.5px solid #fde68a",
-              borderRadius: 10, padding: "10px 14px",
-              display: "flex", alignItems: "center", gap: 10,
-            }}>
-              <span style={{ fontSize: 18 }}>↔️</span>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>
-                Đang so sánh &nbsp;
-                <span style={{ background: "#fde68a", borderRadius: 6, padding: "1px 8px", fontFamily: "monospace" }}>{hits[0]!.code}</span>
-                &nbsp; với &nbsp;
-                <span style={{ background: "#bae6fd", borderRadius: 6, padding: "1px 8px", fontFamily: "monospace" }}>{hits[1]!.code}</span>
+          {/* ── COMPARE MODE ── */}
+          {mode === "compare" && (
+            <>
+              <div style={inputBox(foc1)}>
+                <span style={{ fontSize: 16 }}>🟡</span>
+                <input
+                  autoFocus type="search" value={q1}
+                  onChange={e => setQ1(e.target.value)}
+                  onFocus={() => setFoc1(true)} onBlur={() => setFoc1(false)}
+                  placeholder="Mã màu 1..."
+                  style={{ flex: 1, border: "none", outline: "none", fontSize: 15, color: "#111", background: "transparent", fontFamily: "monospace", fontWeight: 600 }}
+                />
+                {q1 && <button onClick={() => setQ1("")} style={{ border: "none", background: "#f3f4f6", color: "#6b7280", borderRadius: "50%", width: 22, height: 22, cursor: "pointer", fontSize: 12, padding: 0 }}>✕</button>}
               </div>
-            </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "10px 0" }}>
+                <div style={{ flex: 1, height: 1, background: "#f1f5f9" }} />
+                <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 700 }}>SO SÁNH VỚI</span>
+                <div style={{ flex: 1, height: 1, background: "#f1f5f9" }} />
+              </div>
+              <div style={inputBox(foc2, "#0ea5e9")}>
+                <span style={{ fontSize: 16 }}>🔵</span>
+                <input
+                  type="search" value={q2}
+                  onChange={e => setQ2(e.target.value)}
+                  onFocus={() => setFoc2(true)} onBlur={() => setFoc2(false)}
+                  placeholder="Mã màu 2..."
+                  style={{ flex: 1, border: "none", outline: "none", fontSize: 15, color: "#111", background: "transparent", fontFamily: "monospace", fontWeight: 600 }}
+                />
+                {q2 && <button onClick={() => setQ2("")} style={{ border: "none", background: "#f3f4f6", color: "#6b7280", borderRadius: "50%", width: 22, height: 22, cursor: "pointer", fontSize: 12, padding: 0 }}>✕</button>}
+              </div>
+
+              {/* result chips */}
+              {(q1 || q2) && (
+                <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                  {[{ q: q1, h: hit1, icon: "🟡", bg: "#fef3c7", bd: "#fde68a", lbl: "#92400e" }, { q: q2, h: hit2, icon: "🔵", bg: "#e0f2fe", bd: "#bae6fd", lbl: "#075985" }]
+                    .filter(x => x.q)
+                    .map((x, i) => (
+                      <div key={i} style={{ flex: 1, minWidth: 120, background: x.h ? x.bg : "#fef2f2", border: `1.5px solid ${x.h ? x.bd : "#fecaca"}`, borderRadius: 10, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+                        <span>{x.h ? x.icon : "❌"}</span>
+                        {x.h ? (
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: x.lbl, fontFamily: "monospace" }}>{x.h.code}</div>
+                            <div style={{ fontSize: 11, color: "#6b7280" }}>Cột {x.h.col} · Hàng {x.h.row + 1}</div>
+                          </div>
+                        ) : <div style={{ fontSize: 12, color: "#dc2626" }}>Không tìm thấy</div>}
+                      </div>
+                    ))}
+                </div>
+              )}
+              {hit1 && hit2 && (
+                <div style={{ marginTop: 10, background: "linear-gradient(135deg,#fef3c7,#e0f2fe)", border: "1.5px solid #fde68a", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#374151" }}>
+                  ↔️ So sánh <span style={{ background: "#fde68a", borderRadius: 6, padding: "1px 8px", fontFamily: "monospace" }}>{hit1.code}</span> với <span style={{ background: "#bae6fd", borderRadius: 6, padding: "1px 8px", fontFamily: "monospace" }}>{hit2.code}</span>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── SCAN MODE ── */}
+          {mode === "scan" && (
+            <>
+              <p style={{ margin: "0 0 10px", fontSize: 13, color: "#6b7280", lineHeight: 1.5 }}>
+                Dán danh sách mã chỉ vào đây (ví dụ: <span style={{ fontFamily: "monospace", background: "#f1f5f9", padding: "1px 6px", borderRadius: 4 }}>R=G721, P=G921, Y=5675</span>). App sẽ tìm và khoanh tất cả mã có trong bảng.
+              </p>
+              <textarea
+                autoFocus
+                value={scanText}
+                onChange={e => setScanText(e.target.value)}
+                placeholder={"Ví dụ:\nR=G721, P=G921, Y=5675\nC=G915, C=9030, B=G826"}
+                rows={4}
+                style={{
+                  width: "100%", border: "2px solid #e5e7eb", borderRadius: 12, padding: "12px 14px",
+                  fontSize: 14, fontFamily: "monospace", color: "#111", resize: "vertical",
+                  outline: "none", boxSizing: "border-box", lineHeight: 1.6,
+                  transition: "border 0.2s",
+                }}
+                onFocus={e => e.target.style.borderColor = "#7c3aed"}
+                onBlur={e => e.target.style.borderColor = "#e5e7eb"}
+              />
+
+              {scanCodes.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  {scanFound.length > 0 && (
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#059669", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                        ✅ Tìm thấy {scanFound.length}/{scanCodes.length} mã
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {scanFound.map((h, i) => (
+                          <span key={i} style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 8, padding: "3px 10px", fontSize: 12, fontWeight: 700, color: "#92400e", fontFamily: "monospace" }}>
+                            {h.code}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {scanMissed.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#dc2626", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                        ❌ Không có trong bảng ({scanMissed.length} mã)
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {scanMissed.map((c, i) => (
+                          <span key={i} style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "3px 10px", fontSize: 12, fontWeight: 600, color: "#dc2626", fontFamily: "monospace" }}>
+                            {c}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -294,63 +378,57 @@ export default function Home() {
       {/* ── CHARTS ── */}
       <main style={{ maxWidth: 640, margin: "0 auto", padding: "24px 16px 40px" }}>
         {CHARTS.map((chart) => {
-          const chartHits = hits.filter(h => h?.chartId === chart.id);
-          const isActive = chartHits.length > 0;
+          const chartPins = pins.filter(p => p.hit.chartId === chart.id);
+          const isActive = chartPins.length > 0;
           return (
-            <div key={chart.id}
-              ref={isActive ? hitRef : undefined}
-              style={{ marginBottom: 28 }}
-            >
-              {/* Section label */}
+            <div key={chart.id} ref={isActive ? hitRef : undefined} style={{ marginBottom: 28 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                 <div style={{ width: 3, height: 18, borderRadius: 2, background: isActive ? "#059669" : "#d1fae5" }} />
                 <span style={{ fontSize: 11, fontWeight: 700, color: isActive ? "#065f46" : "#9ca3af", textTransform: "uppercase", letterSpacing: "0.1em" }}>
                   {chart.label}
                 </span>
-                {chartHits.map((h, idx) => h && (
-                  <span key={idx} style={{
-                    background: SLOTS[hits.indexOf(h)].bg,
-                    border: `1px solid ${SLOTS[hits.indexOf(h)].bdg}`,
+                {isActive && mode === "scan" && (
+                  <span style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 8, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: "#92400e" }}>
+                    🟡 {chartPins.length} mã
+                  </span>
+                )}
+                {isActive && mode !== "scan" && chartPins.map((p, i) => (
+                  <span key={i} style={{
+                    background: i === 0 ? "#fef3c7" : "#e0f2fe",
+                    border: `1px solid ${i === 0 ? "#fde68a" : "#bae6fd"}`,
                     borderRadius: 8, padding: "2px 9px",
                     fontSize: 11, fontWeight: 700,
-                    color: SLOTS[hits.indexOf(h)].label,
+                    color: i === 0 ? "#92400e" : "#075985",
                     fontFamily: "monospace",
                   }}>
-                    {SLOTS[hits.indexOf(h)].icon} {h.code}
+                    {i === 0 ? "🟡" : "🔵"} {p.hit.code}
                   </span>
                 ))}
               </div>
-
-              {/* Image card */}
               <div style={{
                 borderRadius: 16, overflow: "hidden",
-                boxShadow: isActive
-                  ? "0 0 0 2px #059669, 0 12px 36px rgba(5,150,105,0.18)"
-                  : "0 2px 12px rgba(0,0,0,0.08)",
+                boxShadow: isActive ? "0 0 0 2px #059669, 0 12px 36px rgba(5,150,105,0.18)" : "0 2px 12px rgba(0,0,0,0.08)",
                 border: `2px solid ${isActive ? "#059669" : "transparent"}`,
                 transition: "all 0.35s cubic-bezier(0.4,0,0.2,1)",
                 background: "#fff",
               }}>
-                <ChartImage chart={chart} pins={hits} />
+                <ChartImage chart={chart} pins={chartPins} />
               </div>
             </div>
           );
         })}
       </main>
 
-      {/* ── FOOTER ── */}
-      <div style={{ textAlign: "center", padding: "20px 16px", borderTop: "1px solid #e5e7eb", background: "white" }}>
-        <p style={{ margin: 0, fontSize: 12, color: "#9ca3af" }}>
-          Gingko Brand High-Grade Embroidery Thread · 100% Polyester
-        </p>
+      <div style={{ textAlign: "center", padding: "20px 16px", borderTop: "1px solid #e5e7eb", background: "white", fontSize: 12, color: "#9ca3af" }}>
+        Gingko Brand High-Grade Embroidery Thread · 100% Polyester
       </div>
 
       <style>{`
-        @keyframes pulse-a {
+        @keyframes pa {
           0%,100% { box-shadow: 0 0 0 2.5px #f59e0b, 0 0 10px rgba(245,158,11,0.55); }
           50%      { box-shadow: 0 0 0 4px   #f59e0b, 0 0 22px rgba(245,158,11,0.85); }
         }
-        @keyframes pulse-b {
+        @keyframes pb {
           0%,100% { box-shadow: 0 0 0 2.5px #0ea5e9, 0 0 10px rgba(14,165,233,0.5); }
           50%      { box-shadow: 0 0 0 4px   #0ea5e9, 0 0 22px rgba(14,165,233,0.8); }
         }
