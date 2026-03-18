@@ -437,8 +437,9 @@ function renderDesign(
   }
 
   const BRIDGE_THRESHOLD = 30; // stitch units (~3mm)
-  // Match reference photo: thin thread (≈1–1.5 px) closely packed
-  const baseW = Math.max(1.1, scale * 1.3);
+  // Core thread = thin; but the fill/shadow layer must be wide enough
+  // to close every gap between adjacent stitches so they look woven together.
+  const baseW = Math.max(1.0, scale * 1.2);
 
   // Build the path for a segment, returns true if it had any STITCH points
   function buildPath(seg: {start:number;end:number;ci:number}): boolean {
@@ -471,31 +472,32 @@ function renderDesign(
     const color = colors[seg.ci] ?? colors[seg.ci % colors.length] ?? "#ffffff";
     ctx.lineCap = "round"; ctx.lineJoin = "round";
 
-    // Pass 1 — shadow halo (fills gap, creates depth between stitches)
+    // Pass 1 — dense fill: OPAQUE dark base, wide enough to close every gap
+    //           between adjacent stitches (no fabric showing through)
+    if (buildPath(seg)) {
+      ctx.lineWidth = baseW * 3.2;
+      ctx.strokeStyle = shadeHex(color, -70);
+      ctx.stroke();
+    }
+
+    // Pass 2 — thread body: opaque, slightly less dark, narrower
     if (buildPath(seg)) {
       ctx.lineWidth = baseW * 2.0;
-      ctx.strokeStyle = hexAlpha(shadeHex(color, -80), 0.38);
+      ctx.strokeStyle = shadeHex(color, -30);
       ctx.stroke();
     }
 
-    // Pass 2 — thread body (edge color, slightly darker than true color)
-    if (buildPath(seg)) {
-      ctx.lineWidth = baseW * 1.5;
-      ctx.strokeStyle = shadeHex(color, -28);
-      ctx.stroke();
-    }
-
-    // Pass 3 — core (true color, narrower — the illuminated top of the thread)
+    // Pass 3 — core: true color on top (illuminated centre of the thread)
     if (buildPath(seg)) {
       ctx.lineWidth = baseW * 1.0;
       ctx.strokeStyle = color;
       ctx.stroke();
     }
 
-    // Pass 4 — highlight shimmer (thin bright streak mimicking thread sheen)
+    // Pass 4 — highlight: thin bright streak (thread sheen)
     if (buildPath(seg)) {
-      ctx.lineWidth = Math.max(0.3, baseW * 0.28);
-      ctx.strokeStyle = hexAlpha(shadeHex(color, 100), 0.50);
+      ctx.lineWidth = Math.max(0.3, baseW * 0.25);
+      ctx.strokeStyle = hexAlpha(shadeHex(color, 110), 0.55);
       ctx.stroke();
     }
   }
