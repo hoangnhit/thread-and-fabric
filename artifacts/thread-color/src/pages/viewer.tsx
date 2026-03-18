@@ -763,31 +763,53 @@ export default function Viewer() {
     <div style={{display:"flex",flexDirection:"column",minHeight:"100dvh",background:"#0d1117",color:"#e8e8f0",fontFamily:"Inter,system-ui,sans-serif"}}>
 
       {/* ── Header ── */}
-      <header style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 20px",background:"#0d1117",borderBottom:"1px solid #1e2436"}}>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <button onClick={()=>navigate("/")} style={{background:"none",border:"none",color:"#666",fontSize:18,cursor:"pointer",padding:"2px 6px",borderRadius:6}}>←</button>
-          <SpoolIcon size={26}/>
-          <span style={{fontWeight:800,fontSize:17,color:"#fff",letterSpacing:-0.3}}>
-            <span style={{color:"#4A9EFF"}}>stitch</span>Viewer
-          </span>
-        </div>
-        <div style={{display:"flex",gap:4}}>
-          {(["cloth","leather","fleece"] as const).map(f=>(
-            <button key={f} onClick={()=>{setFabric(f);setUseCustomBg(false);}}
-              style={{padding:"5px 14px",borderRadius:6,border:"1px solid",fontSize:13,fontWeight:600,cursor:"pointer",transition:"all 0.15s",
-                background:(!useCustomBg&&fabric===f)?"#3b82f6":"transparent",
-                borderColor:(!useCustomBg&&fabric===f)?"#3b82f6":"#2a3050",
-                color:(!useCustomBg&&fabric===f)?"#fff":"#9ca3af"}}>
-              {f.charAt(0).toUpperCase()+f.slice(1)}
+      <header style={{background:"#0d1117",borderBottom:"1px solid #1e2436"}}>
+        {/* Tier 1 — main nav tabs */}
+        <div style={{display:"flex",borderBottom:"1px solid #1e2436",padding:"0 20px",alignItems:"center",gap:4}}>
+          {/* Logo */}
+          <div style={{display:"flex",alignItems:"center",gap:6,marginRight:16,paddingRight:16,borderRight:"1px solid #1e2436"}}>
+            <SpoolIcon size={20}/>
+            <span style={{fontWeight:800,fontSize:14,color:"#fff",letterSpacing:-0.3,whiteSpace:"nowrap"}}>
+              <span style={{color:"#4A9EFF"}}>stitch</span>Viewer
+            </span>
+          </div>
+          {/* Tabs */}
+          {([
+            {label:"🧵 Danh mục màu chỉ", color:"#4A9EFF", active:false, onClick:()=>navigate("/")},
+            {label:"🎨 Danh mục vải",       color:"#f59e0b", active:false, onClick:()=>navigate("/fabrics")},
+            {label:"📁 File thêu",          color:"#a78bfa", active:true,  onClick:()=>{}},
+          ] as const).map(t=>(
+            <button key={t.label} onClick={t.onClick}
+              style={{padding:"10px 14px",border:"none",cursor:"pointer",background:"transparent",whiteSpace:"nowrap",
+                fontSize:12,fontWeight:t.active?700:500,transition:"all 0.15s",
+                color:t.active?t.color:"#6b7a99",
+                borderBottom:t.active?`2.5px solid ${t.color}`:"2.5px solid transparent",
+                marginBottom:-1}}>
+              {t.label}
             </button>
           ))}
-          <label title="Custom background color" style={{position:"relative",cursor:"pointer"}}>
-            <div style={{width:32,height:32,borderRadius:6,border:"2px solid "+(useCustomBg?"#3b82f6":"#2a3050"),
+        </div>
+
+        {/* Tier 2 — background picker */}
+        <div style={{display:"flex",gap:6,padding:"8px 20px",alignItems:"center"}}>
+          <span style={{fontSize:10,fontWeight:600,color:"#4a5580",letterSpacing:0.8,marginRight:4}}>NỀN VẢI</span>
+          {(["cloth","leather","fleece"] as const).map(f=>(
+            <button key={f} onClick={()=>{setFabric(f);setUseCustomBg(false);}}
+              style={{padding:"4px 12px",borderRadius:20,border:"1.5px solid",fontSize:11,fontWeight:600,cursor:"pointer",transition:"all 0.15s",
+                background:(!useCustomBg&&fabric===f)?"#3b82f6":"transparent",
+                borderColor:(!useCustomBg&&fabric===f)?"#3b82f6":"#2a3050",
+                color:(!useCustomBg&&fabric===f)?"#fff":"#6b7a99"}}>
+              {f==="cloth"?"Vải":f==="leather"?"Da":"Nỉ"}
+            </button>
+          ))}
+          <label title="Màu nền tùy chỉnh" style={{position:"relative",cursor:"pointer"}}>
+            <div style={{width:24,height:24,borderRadius:20,border:"1.5px solid "+(useCustomBg?"#3b82f6":"#2a3050"),
               background:useCustomBg?customBg:"linear-gradient(135deg,#f472b6,#818cf8)",cursor:"pointer"}}
               onClick={()=>setUseCustomBg(true)}/>
             <input type="color" value={customBg} onChange={e=>{setCustomBg(e.target.value);setUseCustomBg(true);}}
               style={{position:"absolute",inset:0,opacity:0,width:"100%",height:"100%",cursor:"pointer"}}/>
           </label>
+          <span style={{fontSize:10,color:"#4a5580",marginLeft:4}}>tùy chỉnh</span>
         </div>
       </header>
 
