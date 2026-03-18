@@ -135,7 +135,7 @@ function ChartImage({ chart, pins, focusedCode }: { chart: typeof CHARTS[0]; pin
 /* ─── MAIN ──────────────────────────────────────────────────────── */
 export default function Home() {
   const [, navigate] = useLocation();
-  const [brand, setBrand] = useState<"gingko" | "dantuong">("gingko");
+  const [brand, setBrand] = useState<"all" | "gingko" | "dantuong">("all");
   const [mode, setMode] = useState<Mode>("single");
   const [q1, setQ1] = useState("");
   const [q2, setQ2] = useState("");
@@ -293,46 +293,36 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* Tier 2a — brand selector */}
-              <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-                <button
-                  onClick={() => setBrand("gingko")}
-                  style={{
-                    padding: "5px 14px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 700,
-                    background: brand === "gingko" ? "#064e3b" : "#f1f5f9",
-                    color: brand === "gingko" ? "#34d399" : "#6b7280",
-                    border: brand === "gingko" ? "1.5px solid #059669" : "1.5px solid #e5e7eb",
-                    transition: "all 0.15s",
-                  }}>
-                  🧵 Chỉ GINGKO
-                </button>
-                <button
-                  onClick={() => setBrand("dantuong")}
-                  style={{
-                    padding: "5px 14px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 700,
-                    background: brand === "dantuong" ? "#1e3a5f" : "#f1f5f9",
-                    color: brand === "dantuong" ? "#60a5fa" : "#6b7280",
-                    border: brand === "dantuong" ? "1.5px solid #3b82f6" : "1.5px solid #e5e7eb",
-                    transition: "all 0.15s",
-                  }}>
-                  🪡 Chỉ danh tường
-                </button>
-              </div>
+              {/* Tier 2a — brand filter + mode pills on same row */}
+              <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap", alignItems: "center" }}>
+                {/* brand pills */}
+                {([ 
+                  { key: "all",      label: "Tất cả",         bg: "#f1f5f9", abg: "#374151", col: "#9ca3af", acol: "#fff", bd: "#e5e7eb", abd: "#374151" },
+                  { key: "gingko",   label: "🧵 Chỉ GINGKO",  bg: "#f1f5f9", abg: "#064e3b", col: "#6b7280", acol: "#34d399", bd: "#e5e7eb", abd: "#059669" },
+                  { key: "dantuong", label: "🪡 Chỉ danh tường", bg: "#f1f5f9", abg: "#1e3a5f", col: "#6b7280", acol: "#60a5fa", bd: "#e5e7eb", abd: "#3b82f6" },
+                ] as const).map(b => (
+                  <button key={b.key} onClick={() => setBrand(b.key)}
+                    style={{
+                      padding: "5px 13px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 700,
+                      background: brand === b.key ? b.abg : b.bg,
+                      color: brand === b.key ? b.acol : b.col,
+                      border: `1.5px solid ${brand === b.key ? b.abd : b.bd}`,
+                      transition: "all 0.15s",
+                    }}>
+                    {b.label}
+                  </button>
+                ))}
 
-              {/* Tier 2b — mode pills (GINGKO only) */}
-              {brand === "gingko" && (
-                <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
-                  <button style={subPill(mode === "single")} onClick={() => switchMode("single")}>🔍 Tìm mã</button>
-                  <button style={subPill(mode === "compare", "#0ea5e9")} onClick={() => switchMode("compare")}>↔️ So sánh 2 mã</button>
-                  <button style={subPill(mode === "scan", "#7c3aed")} onClick={() => switchMode("scan")}>📋 Quét danh sách</button>
-                </div>
-              )}
-              {brand === "dantuong" && <div style={{ marginBottom: 18 }} />}
+                {/* mode pills */}
+                <button style={subPill(mode === "single")} onClick={() => switchMode("single")}>🔍 Tìm mã</button>
+                <button style={subPill(mode === "compare", "#0ea5e9")} onClick={() => switchMode("compare")}>↔️ So sánh 2 mã</button>
+                <button style={subPill(mode === "scan", "#7c3aed")} onClick={() => switchMode("scan")}>📋 Quét danh sách</button>
+              </div>
             </div>
           )}
 
           {/* ── GINGKO MODE CONTENT ── */}
-          {brand === "gingko" && (<>
+          {brand !== "dantuong" && (<>
 
           {/* ── SINGLE MODE ── */}
           {mode === "single" && (
@@ -529,8 +519,8 @@ export default function Home() {
         >⬆</button>
       )}
 
-      {/* ── CHARTS (GINGKO only) ── */}
-      {brand === "gingko" && <main style={{ maxWidth: 640, margin: "0 auto", padding: "24px 16px 40px" }}>
+      {/* ── CHARTS ── */}
+      {brand !== "dantuong" && <main style={{ maxWidth: 640, margin: "0 auto", padding: "24px 16px 40px" }}>
         {CHARTS.map((chart) => {
           const chartPins = pins.filter(p => p.hit.chartId === chart.id);
           const isActive = chartPins.length > 0;
@@ -582,8 +572,8 @@ export default function Home() {
         })}
       </main>}
 
-      {/* ── FLOATING PANEL: scan found codes (GINGKO only) ── */}
-      {brand === "gingko" && mode === "scan" && scanFound.length > 0 && (
+      {/* ── FLOATING PANEL: scan found codes ── */}
+      {brand !== "dantuong" && mode === "scan" && scanFound.length > 0 && (
         <div style={{
           position: "fixed", right: 10, top: "50%", transform: "translateY(-50%)",
           width: 88, zIndex: 50,
