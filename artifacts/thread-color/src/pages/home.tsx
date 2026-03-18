@@ -3,10 +3,9 @@ import { useState, useRef, useEffect } from "react";
 const IMAGE_WIDTH = 960;
 const IMAGE_HEIGHT = 1280;
 
-// Measured from actual images: first thread swatch center y, row spacing
 const CHART_CONFIG = {
-  ae: { topY: 252, rowH: 50 },
-  pt: { topY: 215, rowH: 52 },
+  ae: { topY: 252, rowH: 50, rotateDeg: 1.5 },
+  pt: { topY: 215, rowH: 52, rotateDeg: 0.3 },
 };
 
 function rowYPct(chartId: "ae" | "pt", i: number): number {
@@ -55,81 +54,73 @@ function findCode(query: string): Hit | null {
   return null;
 }
 
-// Per-chart CSS rotation to visually straighten the photo
-const CHART_ROTATE_DEG: Record<string, number> = {
-  ae: 1.5,  // AE photo: right side slightly high, rotate clockwise
-  pt: 0.3,  // PT photo: near-straight
-};
-
 function ChartImage({ chart, hit }: { chart: typeof CHARTS[0]; hit: Hit | null }) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
 
   useEffect(() => {
-    const el = containerRef.current;
+    const el = wrapRef.current;
     if (!el) return;
     const update = () => {
-      const inner = el.querySelector(".chart-inner") as HTMLElement;
-      if (inner) setSize({ w: inner.offsetWidth, h: inner.offsetHeight });
+      const img = el.querySelector("img");
+      if (img) setSize({ w: img.offsetWidth, h: img.offsetHeight });
     };
+    update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
-    update();
     return () => ro.disconnect();
   }, []);
 
   const activeHit = hit?.chartId === chart.id ? hit : null;
-  const rotateDeg = CHART_ROTATE_DEG[chart.id] ?? 0;
+  const { rotateDeg } = CHART_CONFIG[chart.id];
 
   return (
-    <div ref={containerRef} className="w-full overflow-hidden" style={{ position: "relative" }}>
+    <div style={{ overflow: "hidden", position: "relative" }}>
       <div
-        className="chart-inner relative"
+        ref={wrapRef}
         style={{
-          transformOrigin: "center center",
+          position: "relative",
           transform: `rotate(${rotateDeg}deg)`,
-          width: "100%",
+          transformOrigin: "center center",
         }}
       >
-      <img
-        src={chart.file}
-        alt={chart.label}
-        className="w-full block"
-        style={{ userSelect: "none" }}
-        onLoad={() => {
-          const inner = containerRef.current?.querySelector(".chart-inner") as HTMLElement;
-          if (inner) setSize({ w: inner.offsetWidth, h: inner.offsetHeight });
-        }}
-      />
+        <img
+          src={chart.file}
+          alt={chart.label}
+          style={{ display: "block", width: "100%", userSelect: "none" }}
+          onLoad={() => {
+            const img = wrapRef.current?.querySelector("img");
+            if (img) setSize({ w: img.offsetWidth, h: img.offsetHeight });
+          }}
+        />
 
-      {size.w > 0 && chart.columns.map((col) =>
-        col.codes.map((code, i) => {
-          const isHit = activeHit?.col === col.name && activeHit?.row === i;
-          const cx = col.xPct * size.w;
-          const cy = rowYPct(chart.id, i) * size.h;
-          const boxW = (65 / IMAGE_WIDTH) * size.w;
-          const boxH = (CHART_CONFIG[chart.id].rowH * 0.85 / IMAGE_HEIGHT) * size.h;
-
-          if (!isHit) return null;
-
-          return (
-            <div
-              key={`${col.name}-${i}`}
-              style={{
-                position: "absolute",
-                left: cx - boxW / 2,
-                top: cy - boxH / 2,
-                width: boxW,
-                height: boxH,
-                borderRadius: 4,
-                backgroundColor: "rgba(255,220,0,0.5)",
-                boxShadow: "0 0 0 3px #f59e0b, 0 0 12px rgba(245,158,11,0.6)",
-                pointerEvents: "none",
-              }}
-            />
-          );
-        })
-      )}
+        {size.w > 0 && activeHit && chart.columns.map((col) =>
+          col.name === activeHit.col
+            ? col.codes.map((_, i) => {
+                if (i !== activeHit.row) return null;
+                const cx = col.xPct * size.w;
+                const cy = rowYPct(chart.id, i) * size.h;
+                const bw = (65 / IMAGE_WIDTH) * size.w;
+                const bh = (CHART_CONFIG[chart.id].rowH * 0.85 / IMAGE_HEIGHT) * size.h;
+                return (
+                  <div
+                    key={`hit-${col.name}-${i}`}
+                    style={{
+                      position: "absolute",
+                      left: cx - bw / 2,
+                      top: cy - bh / 2,
+                      width: bw,
+                      height: bh,
+                      borderRadius: 4,
+                      backgroundColor: "rgba(255,220,0,0.5)",
+                      boxShadow: "0 0 0 3px #f59e0b, 0 0 12px rgba(245,158,11,0.6)",
+                      pointerEvents: "none",
+                    }}
+                  />
+                );
+              })
+            : null
+        )}
       </div>
     </div>
   );
@@ -137,61 +128,67 @@ function ChartImage({ chart, hit }: { chart: typeof CHARTS[0]; hit: Hit | null }
 
 export default function Home() {
   const [query, setQuery] = useState("");
-  const hitChartRef = useRef<HTMLDivElement | null>(null);
-
+  const hitRef = useRef<HTMLDivElement | null>(null);
   const hit = findCode(query);
 
   useEffect(() => {
     if (hit) {
-      setTimeout(() => {
-        hitChartRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 150);
+      setTimeout(() => hitRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 150);
     }
   }, [hit?.chartId, hit?.col, hit?.row]);
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
-      <header className="sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-green-700 flex items-center justify-center flex-shrink-0">
-            <span className="text-white text-xs font-bold">G</span>
+    <div style={{ minHeight: "100vh", backgroundColor: "#f3f4f6", display: "flex", flexDirection: "column" }}>
+      <header style={{
+        position: "sticky", top: 0, zIndex: 20,
+        backgroundColor: "white", borderBottom: "1px solid #e5e7eb",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+      }}>
+        <div style={{ maxWidth: 672, margin: "0 auto", padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: "50%", backgroundColor: "#15803d",
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+          }}>
+            <span style={{ color: "white", fontSize: 12, fontWeight: "bold" }}>G</span>
           </div>
           <input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Nhập mã màu (vd: G622, 5860...)"
-            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition"
             autoFocus
+            style={{
+              flex: 1, padding: "8px 12px", fontSize: 14,
+              border: "1px solid #d1d5db", borderRadius: 8, outline: "none",
+            }}
+            onFocus={(e) => { e.target.style.borderColor = "#16a34a"; e.target.style.boxShadow = "0 0 0 3px rgba(22,163,74,0.1)"; }}
+            onBlur={(e) => { e.target.style.borderColor = "#d1d5db"; e.target.style.boxShadow = "none"; }}
           />
           {hit && (
-            <span className="text-sm font-semibold text-green-700 flex-shrink-0 whitespace-nowrap">
+            <span style={{ fontSize: 14, fontWeight: 600, color: "#15803d", whiteSpace: "nowrap" }}>
               Cột {hit.col} · Hàng {hit.row + 1}
             </span>
           )}
           {query && !hit && (
-            <span className="text-sm text-red-500 flex-shrink-0">Không tìm thấy</span>
+            <span style={{ fontSize: 14, color: "#ef4444", whiteSpace: "nowrap" }}>Không tìm thấy</span>
           )}
         </div>
       </header>
 
-      <main className="flex-1 max-w-2xl mx-auto w-full px-2 py-4 flex flex-col gap-6">
+      <main style={{ flex: 1, maxWidth: 672, margin: "0 auto", width: "100%", padding: "16px 8px", display: "flex", flexDirection: "column", gap: 24 }}>
         {CHARTS.map((chart) => {
           const isHitChart = hit?.chartId === chart.id;
           return (
-            <div
-              key={chart.id}
-              ref={isHitChart ? hitChartRef : undefined}
-            >
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-1 px-1">
+            <div key={chart.id} ref={isHitChart ? hitRef : undefined}>
+              <p style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4, paddingLeft: 4 }}>
                 {chart.label}
                 {isHitChart && (
-                  <span className="ml-2 text-amber-600 normal-case tracking-normal font-bold">
-                    ↓ Đang hiển thị mã {hit!.code}
+                  <span style={{ marginLeft: 8, color: "#d97706", textTransform: "none", letterSpacing: 0, fontWeight: "bold" }}>
+                    ↓ Mã {hit!.code}
                   </span>
                 )}
               </p>
-              <div className="rounded-xl overflow-hidden shadow-md border border-gray-200">
+              <div style={{ borderRadius: 12, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.15)", border: "1px solid #e5e7eb" }}>
                 <ChartImage chart={chart} hit={hit} />
               </div>
             </div>
@@ -199,7 +196,7 @@ export default function Home() {
         })}
       </main>
 
-      <footer className="text-center text-xs text-gray-400 py-3">
+      <footer style={{ textAlign: "center", fontSize: 12, color: "#9ca3af", padding: "12px 0" }}>
         Gingko Brand — 100% Polyester
       </footer>
     </div>
