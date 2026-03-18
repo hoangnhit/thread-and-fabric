@@ -141,16 +141,60 @@ function readPECStitches(data:Uint8Array, startPos:number, palette:string[], lab
           stitchCount:stitches.filter(s=>s.type==="STITCH").length, format:"PES", label};
 }
 
+/* ─── FABRIC TEXTURE DRAWER ─────────────────────────────────────── */
+function drawFabricTexture(ctx: CanvasRenderingContext2D, w: number, h: number, fabricType: string, customBg?: string) {
+  ctx.save();
+  if (fabricType === "custom" && customBg) {
+    ctx.fillStyle = customBg;
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+    return;
+  }
+
+  const cfgs = {
+    cloth:   { bg: "#111827", p1: "rgba(255,255,255,0.11)", p2: "rgba(255,255,255,0.05)", sp: 5, w1: 1.0, w2: 0.7 },
+    leather: { bg: "#0b0806", p1: "rgba(255,255,255,0.05)", p2: "rgba(255,255,255,0.02)", sp: 8, w1: 1.0, w2: 0.5 },
+    fleece:  { bg: "#1a1824", p1: "rgba(255,255,255,0.07)", p2: "rgba(255,255,255,0.07)", sp: 4, w1: 0.8, w2: 0.8 },
+  };
+  const cfg = cfgs[fabricType as keyof typeof cfgs] || cfgs.cloth;
+
+  ctx.fillStyle = cfg.bg;
+  ctx.fillRect(0, 0, w, h);
+
+  // Primary diagonal weave lines (lower-right direction: 45°)
+  ctx.beginPath();
+  ctx.strokeStyle = cfg.p1;
+  ctx.lineWidth = cfg.w1;
+  const diag = Math.max(w, h) * 2;
+  for (let d = -diag; d < diag + diag; d += cfg.sp) {
+    ctx.moveTo(d, 0);
+    ctx.lineTo(d + h, h);
+  }
+  ctx.stroke();
+
+  // Cross weave lines (lower-left direction: 135°)
+  ctx.beginPath();
+  ctx.strokeStyle = cfg.p2;
+  ctx.lineWidth = cfg.w2;
+  for (let d = -diag; d < diag + diag; d += cfg.sp) {
+    ctx.moveTo(d + h, 0);
+    ctx.lineTo(d, h);
+  }
+  ctx.stroke();
+
+  ctx.restore();
+}
+
 /* ─── CANVAS RENDERER ───────────────────────────────────────────── */
 function renderDesign(
   canvas: HTMLCanvasElement, design: ParsedDesign, colors: string[],
   scale: number, offsetX: number, offsetY: number,
-  maxStitchIdx: number = Infinity, bgColor?: string
+  maxStitchIdx: number = Infinity, fabricType = "cloth", customBg?: string
 ) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  if (bgColor) { ctx.fillStyle = bgColor; ctx.fillRect(0,0,canvas.width,canvas.height); }
+  drawFabricTexture(ctx, canvas.width, canvas.height, fabricType, customBg);
 
   const {stitches} = design;
   if (!stitches.length) return;
@@ -275,10 +319,11 @@ export default function Viewer() {
 
   const triggerRender = useCallback(() => {
     if (!design||!canvasRef.current) return;
-    const fabric_ = useCustomBg ? null : FABRICS[fabric];
     renderDesign(canvasRef.current, design, editedColors, scaleRef.current,
-      offsetRef.current.x, offsetRef.current.y, animMaxIdx, undefined);
-  }, [design, editedColors, fabric, useCustomBg, animMaxIdx]);
+      offsetRef.current.x, offsetRef.current.y, animMaxIdx,
+      useCustomBg ? "custom" : fabric,
+      useCustomBg ? customBg : undefined);
+  }, [design, editedColors, fabric, useCustomBg, customBg, animMaxIdx]);
 
   useEffect(() => { triggerRender(); }, [triggerRender]);
 
@@ -382,10 +427,8 @@ export default function Viewer() {
     if (!design||!canvasRef.current) return;
     const offscreen = document.createElement("canvas");
     offscreen.width = canvasRef.current.width; offscreen.height = canvasRef.current.height;
-    const ctx = offscreen.getContext("2d")!;
-    ctx.fillStyle = useCustomBg ? customBg : FABRICS[fabric].bg;
-    ctx.fillRect(0,0,offscreen.width,offscreen.height);
-    renderDesign(offscreen,design,editedColors,scaleRef.current,offsetRef.current.x,offsetRef.current.y,animMaxIdx);
+    renderDesign(offscreen,design,editedColors,scaleRef.current,offsetRef.current.x,offsetRef.current.y,animMaxIdx,
+      useCustomBg ? "custom" : fabric, useCustomBg ? customBg : undefined);
     offscreen.toBlob(blob=>{
       if (!blob) return;
       const a=document.createElement("a");
@@ -403,7 +446,6 @@ export default function Viewer() {
   const timeMin = design ? Math.ceil(design.stitchCount/spm) : 0;
   const timeStr = timeMin>=60 ? `${Math.floor(timeMin/60)} h ${timeMin%60} min` : `${timeMin} min`;
 
-  const fabricBg = useCustomBg ? customBg : FABRICS[fabric].css;
   const fabricBgColor = useCustomBg ? customBg : FABRICS[fabric].bg;
 
   return (
@@ -456,7 +498,7 @@ export default function Viewer() {
                 </div>
 
                 {/* Canvas area */}
-                <div style={{position:"relative",borderRadius:10,overflow:"hidden",background:fabricBg,aspectRatio:"4/3",
+                <div style={{position:"relative",borderRadius:10,overflow:"hidden",background:fabricBgColor,aspectRatio:"4/3",
                   boxShadow:"0 4px 24px rgba(0,0,0,0.6)",border:"1px solid #1e2436"}}>
 
                   {/* Play / Step buttons */}
