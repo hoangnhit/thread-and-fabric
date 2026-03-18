@@ -63,53 +63,7 @@ function extractCodes(text: string): string[] {
   return result;
 }
 
-type Mode = "single" | "compare" | "scan" | "emb";
-
-/* ─── EMB BINARY PARSER ──────────────────────────────────────────── */
-interface EmbStep { order: number; name: string; }
-
-/** Extract readable thread-name strings from embroidery binary */
-function parseEmbBinary(buffer: ArrayBuffer): EmbStep[] {
-  const bytes = new Uint8Array(buffer);
-  const results: { offset: number; name: string }[] = [];
-
-  // Try both raw ASCII and UTF-16LE (Windows)
-  for (const stride of [1, 2]) {
-    let run = "";
-    let runStart = 0;
-    for (let i = 0; i <= bytes.length - stride; i += stride) {
-      const b = bytes[i];
-      const nextOk = stride === 2 ? bytes[i + 1] === 0 : true;
-      if (b >= 32 && b < 127 && nextOk) {
-        if (!run) runStart = i;
-        run += String.fromCharCode(b);
-      } else {
-        if (run.length >= 2 && run.length <= 40) {
-          const trimmed = run.trim();
-          if (trimmed.length >= 2 && /[A-Za-z0-9]/.test(trimmed)) {
-            results.push({ offset: runStart * (stride === 2 ? 1 : 1) + (stride === 2 ? runStart : 0), name: trimmed });
-          }
-        }
-        run = "";
-      }
-    }
-  }
-
-  // Sort by file offset
-  results.sort((a, b) => a.offset - b.offset);
-
-  // Deduplicate consecutive identical names (same string stored twice)
-  const steps: EmbStep[] = [];
-  let prev = "";
-  let order = 1;
-  for (const r of results) {
-    if (r.name !== prev) {
-      steps.push({ order: order++, name: r.name });
-      prev = r.name;
-    }
-  }
-  return steps;
-}
+type Mode = "single" | "compare" | "scan";
 
 /* ─── CHART IMAGE ──────────────────────────────────────────────── */
 const SLOT_STYLES = [
@@ -186,9 +140,6 @@ export default function Home() {
   const [foc1, setFoc1] = useState(false);
   const [foc2, setFoc2] = useState(false);
   const [focusedScan, setFocusedScan] = useState<Hit | null>(null);
-  const [embSteps, setEmbSteps] = useState<EmbStep[]>([]);
-  const [embFileName, setEmbFileName] = useState<string>("");
-  const [embLoading, setEmbLoading] = useState(false);
   const chartRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // hits
@@ -235,25 +186,6 @@ export default function Home() {
   const switchMode = useCallback((m: Mode) => {
     setMode(m);
     setQ1(""); setQ2(""); setScanText(""); setFocusedScan(null);
-    if (m !== "emb") { setEmbSteps([]); setEmbFileName(""); }
-  }, []);
-
-  const handleEmbFile = useCallback((file: File) => {
-    setEmbFileName(file.name);
-    setEmbSteps([]);
-    setEmbLoading(true);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const buf = e.target?.result as ArrayBuffer;
-        const steps = parseEmbBinary(buf);
-        setEmbSteps(steps);
-      } catch {
-        setEmbSteps([]);
-      }
-      setEmbLoading(false);
-    };
-    reader.readAsArrayBuffer(file);
   }, []);
 
   /* pill button style */
@@ -310,7 +242,6 @@ export default function Home() {
             <button style={pill(mode === "single")} onClick={() => switchMode("single")}>🔍 Tìm mã</button>
             <button style={pill(mode === "compare", "#0ea5e9")} onClick={() => switchMode("compare")}>↔️ So sánh 2 mã</button>
             <button style={pill(mode === "scan", "#7c3aed")} onClick={() => switchMode("scan")}>📋 Quét danh sách</button>
-            <button style={pill(mode === "emb", "#dc2626")} onClick={() => switchMode("emb")}>📂 Đọc file EMB</button>
           </div>
 
           {/* ── SINGLE MODE ── */}
@@ -458,81 +389,6 @@ export default function Home() {
             </>
           )}
 
-          {/* ── EMB FILE MODE ── */}
-          {mode === "emb" && (
-            <>
-              {/* Drop zone */}
-              <div
-                onDragOver={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = "#dc2626"; }}
-                onDragLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "#fca5a5"; }}
-                onDrop={e => {
-                  e.preventDefault();
-                  (e.currentTarget as HTMLElement).style.borderColor = "#fca5a5";
-                  const file = e.dataTransfer.files[0];
-                  if (file) handleEmbFile(file);
-                }}
-                style={{
-                  border: "2px dashed #fca5a5", borderRadius: 14, padding: "22px 16px",
-                  textAlign: "center", background: "#fff5f5", cursor: "pointer",
-                  transition: "border-color 0.2s",
-                }}
-                onClick={() => { const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".emb,.EMB,.dst,.DST,.pes,.PES,.jef,.JEF,.vp3,.VP3,.xxx,.XXX"; inp.onchange = (e) => { const file = (e.target as HTMLInputElement).files?.[0]; if (file) handleEmbFile(file); }; inp.click(); }}
-              >
-                <div style={{ fontSize: 28, marginBottom: 6 }}>📂</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#b91c1c" }}>
-                  {embFileName || "Bấm hoặc kéo thả file vào đây"}
-                </div>
-                <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 4 }}>
-                  Hỗ trợ: .emb, .dst, .pes, .jef, .vp3 · Quét mã màu Gingko
-                </div>
-              </div>
-
-              {/* Loading */}
-              {embLoading && (
-                <div style={{ marginTop: 14, textAlign: "center", color: "#dc2626", fontSize: 13, fontWeight: 600 }}>
-                  ⏳ Đang đọc file...
-                </div>
-              )}
-
-              {/* Results */}
-              {!embLoading && embSteps.length > 0 && (
-                <div style={{ marginTop: 14 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#b91c1c", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                    📋 {embSteps.length} bước chỉ theo thứ tự
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 360, overflow: "auto", paddingRight: 4 }}>
-                    {embSteps.map((s) => (
-                      <div key={s.order} style={{
-                        display: "flex", alignItems: "center", gap: 10,
-                        padding: "7px 12px", borderRadius: 10,
-                        background: s.order % 2 === 0 ? "#fafafa" : "white",
-                        border: "1px solid #f1f5f9",
-                      }}>
-                        <span style={{
-                          fontSize: 11, fontWeight: 800, color: "white",
-                          background: "#dc2626", borderRadius: 6,
-                          padding: "2px 6px", minWidth: 28, textAlign: "center",
-                          flexShrink: 0,
-                        }}>
-                          {s.order}
-                        </span>
-                        <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: "#1e293b", flex: 1, wordBreak: "break-all" }}>
-                          {s.name}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {!embLoading && embFileName && embSteps.length === 0 && (
-                <div style={{ marginTop: 14, padding: "12px 16px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, fontSize: 13, color: "#dc2626", textAlign: "center" }}>
-                  Không đọc được dữ liệu từ file này.<br />
-                  <span style={{ fontSize: 11, color: "#9ca3af" }}>Thử với định dạng .dst, .pes, .jef hoặc .vp3.</span>
-                </div>
-              )}
-            </>
-          )}
         </div>
       </div>
 
