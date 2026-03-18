@@ -43,17 +43,29 @@ async function extractColorFromSrc(src: string, useProxy = false): Promise<{ r: 
   } catch { return null; }
 }
 
-/* Sample average color from a canvas region (wide area) */
+/* Sample average color from a canvas region, filtering out shadow/reflection pixels */
 function sampleCanvasArea(
   ctx: CanvasRenderingContext2D,
   cx: number, cy: number,
   halfW: number, halfH: number
 ): { r: number; g: number; b: number } {
   const d = ctx.getImageData(cx - halfW, cy - halfH, halfW * 2, halfH * 2).data;
-  let r = 0, g = 0, b = 0;
-  const n = d.length / 4;
-  for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; }
-  return { r: r / n, g: g / n, b: b / n };
+  let r = 0, g = 0, b = 0, count = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    const pr = d[i], pg = d[i + 1], pb = d[i + 2];
+    const brightness = (pr + pg + pb) / 3;
+    if (brightness < 25) continue;  // skip very dark pixels (shadows / underexposed)
+    if (brightness > 235) continue; // skip very bright pixels (specular reflection)
+    r += pr; g += pg; b += pb; count++;
+  }
+  if (count === 0) {
+    // fallback: use all pixels if filtering removed everything
+    let fr = 0, fg = 0, fb = 0;
+    const n = d.length / 4;
+    for (let i = 0; i < d.length; i += 4) { fr += d[i]; fg += d[i + 1]; fb += d[i + 2]; }
+    return { r: fr / n, g: fg / n, b: fb / n };
+  }
+  return { r: r / count, g: g / count, b: b / count };
 }
 
 export default function ColorScan() {
@@ -67,6 +79,7 @@ export default function ColorScan() {
 
   const [cameraOn, setCameraOn] = useState(false);
   const [cameraError, setCameraError] = useState("");
+  const [countdown, setCountdown] = useState<number | null>(null);
 
   // captured state
   const [capturedDataUrl, setCapturedDataUrl] = useState<string | null>(null);
@@ -134,8 +147,8 @@ export default function ColorScan() {
     setCameraOn(false);
   }, []);
 
-  /* ── Capture photo and analyze ── */
-  const captureAndAnalyze = useCallback(() => {
+  /* ── Perform actual capture after countdown ── */
+  const doCapture = useCallback(() => {
     const video = videoRef.current;
     const cv = captureCanvasRef.current;
     if (!video || !cv || video.readyState < 2) return;
@@ -145,28 +158,40 @@ export default function ColorScan() {
     const ctx = cv.getContext("2d", { willReadFrequently: true })!;
     ctx.drawImage(video, 0, 0);
 
-    // sample wide center region (center 50% width × 50% height)
+    // sample wide center region (center 50% width × 50% height), skip shadow/reflection pixels
     const hw = Math.floor(W * 0.25), hh = Math.floor(H * 0.25);
     const sampled = sampleCanvasArea(ctx, Math.floor(W / 2), Math.floor(H / 2), hw, hh);
     setCapturedColor(sampled);
 
-    // save captured image as data URL
-    const dataUrl = cv.toDataURL("image/jpeg", 0.85);
+    const dataUrl = cv.toDataURL("image/jpeg", 0.9);
     setCapturedDataUrl(dataUrl);
 
-    // rank fabrics
-    setAnalyzing(true);
     const ranked = fabricColors
       .map(fc => ({ ...fc, dist: colorDist(sampled.r, sampled.g, sampled.b, fc.r, fc.g, fc.b), pct: 0 }))
       .sort((a, b) => a.dist - b.dist)
       .slice(0, 5)
       .map(m => ({ ...m, pct: distToPct(m.dist) }));
     setMatches(ranked);
-    setAnalyzing(false);
 
-    // stop camera after capture
     stopCamera();
   }, [fabricColors, stopCamera]);
+
+  /* ── Start 2-second countdown, then capture ── */
+  const startCountdown = useCallback(() => {
+    if (countdown !== null) return;
+    let n = 2;
+    setCountdown(n);
+    const iv = setInterval(() => {
+      n -= 1;
+      if (n <= 0) {
+        clearInterval(iv);
+        setCountdown(null);
+        doCapture();
+      } else {
+        setCountdown(n);
+      }
+    }, 1000);
+  }, [countdown, doCapture]);
 
   useEffect(() => () => { stopCamera(); }, [stopCamera]);
 
@@ -225,9 +250,17 @@ export default function ColorScan() {
                 }} />
               ))}
             </div>
+            {/* Countdown big number */}
+            {countdown !== null && (
+              <div style={{ position: "absolute", zIndex: 3, display: "flex", alignItems: "center", justifyContent: "center", inset: 0 }}>
+                <div style={{ fontSize: 96, fontWeight: 900, color: "white", textShadow: "0 0 30px rgba(0,0,0,0.8)", lineHeight: 1 }}>
+                  {countdown}
+                </div>
+              </div>
+            )}
             <div style={{ position: "absolute", bottom: 14, left: 0, right: 0, textAlign: "center", zIndex: 2 }}>
               <span style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", background: "rgba(0,0,0,0.5)", borderRadius: 8, padding: "4px 12px" }}>
-                Đặt vải vào khung · bấm 📸 để chụp
+                {countdown !== null ? "Camera đang căn sáng..." : "Đặt vải vào khung · bấm 📸 để chụp"}
               </span>
             </div>
           </div>
@@ -297,15 +330,18 @@ export default function ColorScan() {
           <>
             {/* Shutter button */}
             <button
-              onClick={captureAndAnalyze}
+              onClick={startCountdown}
+              disabled={countdown !== null}
               style={{
                 flex: 1, padding: 16, border: "none", borderRadius: 14,
-                background: "white", color: "#0f172a",
-                fontWeight: 900, fontSize: 18, cursor: "pointer",
+                background: countdown !== null ? "#94a3b8" : "white",
+                color: "#0f172a",
+                fontWeight: 900, fontSize: 18,
+                cursor: countdown !== null ? "not-allowed" : "pointer",
                 boxShadow: "0 0 0 4px rgba(255,255,255,0.2)",
                 letterSpacing: "0.02em",
-              }}>
-              📸 Chụp & Phân tích
+              } as React.CSSProperties}>
+              {countdown !== null ? `⏱ Chờ ${countdown}s...` : "📸 Chụp & Phân tích"}
             </button>
             <button onClick={stopCamera}
               style={{ padding: "14px 16px", border: "1.5px solid #334155", borderRadius: 14, background: "#1e293b", color: "#94a3b8", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
