@@ -272,6 +272,9 @@ export default function Home() {
               <a href={`${import.meta.env.BASE_URL}fabrics`} style={{ textDecoration: "none" }}>
                 <button style={pill(false, "#d97706")}>🎨 Danh mục vải</button>
               </a>
+              <a href={`${import.meta.env.BASE_URL}color-scan`} style={{ textDecoration: "none" }}>
+                <button style={pill(false, "#059669")}>📷 Quét màu vải</button>
+              </a>
             </div>
           )}
 
