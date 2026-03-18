@@ -438,13 +438,15 @@ function renderDesign(
 
   const BRIDGE_THRESHOLD = 30; // stitch units (~3mm)
 
-  // Per-stitch radial gradient stroke — exact leomurca technique (stitchcount.app style).
-  // Gradient centered at stitch start A, radius = stitch_length × 1.4.
-  // Stop positions 0→0.05→0.5→0.9→1 create a sharp dark nub at the stitch tip
-  // that defines each fiber edge when stitches overlap. ±60 shading matches
-  // the real reflectance range of polyester embroidery thread.
-  // lineWidth = scale × 4 → represents ~0.4 mm thread diameter in DST/PES units.
-  ctx.lineWidth = Math.max(1.5, scale * 4);
+  // Per-stitch linear gradient PERPENDICULAR to stitch direction.
+  // This is the physically correct cylindrical-thread simulation:
+  //   - light source above → bright highlight band runs along the MIDDLE of the thread
+  //   - edges are darker (shadow wrapping around the cylinder)
+  //   - gradient is 100% along the stitch length → no dark dots at caps
+  //   - each stitch angle rotates the sheen → adjacent fill stitches catch light differently
+  // lineWidth = scale × 4 → ~0.4 mm real thread diameter in DST/PES units (0.1 mm/unit).
+  const lw = Math.max(1.5, scale * 4);
+  ctx.lineWidth = lw;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
@@ -453,15 +455,20 @@ function renderDesign(
     const len = Math.hypot(dx, dy);
     if (len < 0.2) return;
 
-    const r = len * 1.4;
-    const grad = ctx.createRadialGradient(x1, y1, 0, x1, y1, r);
-    // Rapid 0→0.05 jump: tiny dark cap at stitch origin gives each stitch a
-    // distinct "fiber tip" look — the key detail that makes fills look woven.
-    grad.addColorStop(0,    shadeHex(color, -60));
-    grad.addColorStop(0.05, color);
-    grad.addColorStop(0.5,  shadeHex(color, +60));
-    grad.addColorStop(0.9,  color);
-    grad.addColorStop(1,    shadeHex(color, -60));
+    // Unit vector perpendicular to stitch direction (normal)
+    const nx = -dy / len, ny = dx / len;
+    const hw = lw * 0.5;
+    // Gradient runs edge → center → edge across thread width (perpendicular)
+    const mx = (x1 + x2) * 0.5, my = (y1 + y2) * 0.5;
+    const grad = ctx.createLinearGradient(
+      mx - nx * hw, my - ny * hw,   // one edge of thread
+      mx + nx * hw, my + ny * hw    // opposite edge
+    );
+    grad.addColorStop(0,    shadeHex(color, -60)); // shadow edge
+    grad.addColorStop(0.30, color);                // true color
+    grad.addColorStop(0.50, shadeHex(color, +58)); // highlight center
+    grad.addColorStop(0.70, color);                // true color
+    grad.addColorStop(1,    shadeHex(color, -60)); // shadow edge
 
     ctx.beginPath();
     ctx.moveTo(x1, y1);
