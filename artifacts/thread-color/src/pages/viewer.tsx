@@ -437,68 +437,74 @@ function renderDesign(
   }
 
   const BRIDGE_THRESHOLD = 30; // stitch units (~3mm)
-  // Core thread = thin; but the fill/shadow layer must be wide enough
-  // to close every gap between adjacent stitches so they look woven together.
-  const baseW = Math.max(1.0, scale * 1.2);
+  // Physical thread diameter ≈ 4 stitch units (0.4 mm).
+  // Each stitch is drawn as a filled rotated rectangle with a perpendicular
+  // gradient so it looks like a cylindrical thread, not a flat brush stroke.
+  const threadR = Math.max(1.5, scale * 2.2); // half-diameter in px
 
-  // Build the path for a segment, returns true if it had any STITCH points
-  function buildPath(seg: {start:number;end:number;ci:number}): boolean {
-    let penDown = false, lastRawX = 0, lastRawY = 0, hadStitch = false;
+  // Draw one stitch (A→B) as a filled pill with a cylindrical gradient
+  function drawThread(x1:number,y1:number,x2:number,y2:number,color:string) {
+    const dx = x2-x1, dy = y2-y1;
+    const len = Math.hypot(dx, dy);
+    if (len < 0.3) return;
+    const ux = dx/len, uy = dy/len;   // along stitch
+    const px = -uy,   py = ux;        // perpendicular (thread width direction)
+    const r = threadR;
+    const ext = Math.min(r * 0.6, 2); // slight cap extension to close gaps
+
+    // Perpendicular gradient: shadow edge → body → bright highlight → body → shadow
+    const mx = (x1+x2)/2, my = (y1+y2)/2;
+    const grad = ctx.createLinearGradient(
+      mx + px*r, my + py*r,   // one edge
+      mx - px*r, my - py*r    // other edge
+    );
+    grad.addColorStop(0,    shadeHex(color, -65));
+    grad.addColorStop(0.20, shadeHex(color, -20));
+    grad.addColorStop(0.42, shadeHex(color,  75));  // highlight peak
+    grad.addColorStop(0.62, shadeHex(color,  -5));
+    grad.addColorStop(1,    shadeHex(color, -65));
+
+    // Filled rotated rectangle (the stitch shape)
     ctx.beginPath();
+    ctx.moveTo(x1 - ux*ext + px*r,  y1 - uy*ext + py*r);
+    ctx.lineTo(x2 + ux*ext + px*r,  y2 + uy*ext + py*r);
+    ctx.lineTo(x2 + ux*ext - px*r,  y2 + uy*ext - py*r);
+    ctx.lineTo(x1 - ux*ext - px*r,  y1 - uy*ext - py*r);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+
+  // Render each color segment stitch-by-stitch
+  for (const seg of segments) {
+    const color = colors[seg.ci] ?? colors[seg.ci % colors.length] ?? "#ffffff";
+    let penDown = false;
+    let lastSX = 0, lastSY = 0;
+    let lastRawX = 0, lastRawY = 0;
+
     for (let i = seg.start; i <= seg.end && i <= limit; i++) {
       const s = stitches[i];
       const sx = toSX(s.x), sy = toSY(s.y);
+
       if (s.type === "STITCH") {
-        if (!penDown) { ctx.moveTo(sx, sy); penDown = true; }
-        else ctx.lineTo(sx, sy);
-        lastRawX = s.x; lastRawY = s.y; hadStitch = true;
+        if (penDown) drawThread(lastSX, lastSY, sx, sy, color);
+        lastSX = sx; lastSY = sy;
+        lastRawX = s.x; lastRawY = s.y;
+        penDown = true;
       } else if (s.type === "JUMP") {
-        // Bridge tiny movements within fill areas; lift pen for long jumps
         const dist = Math.hypot(s.x - lastRawX, s.y - lastRawY);
-        if (penDown && dist < BRIDGE_THRESHOLD) ctx.moveTo(sx, sy);
-        else penDown = false;
+        if (penDown && dist < BRIDGE_THRESHOLD) {
+          // tiny gap inside a fill area — keep pen down at new position
+          lastSX = sx; lastSY = sy;
+        } else {
+          penDown = false;
+        }
         lastRawX = s.x; lastRawY = s.y;
       } else {
-        // TRIM or COLOR_CHANGE — always lift the pen (no trim lines drawn)
+        // TRIM / COLOR_CHANGE — cut the thread
         penDown = false;
         lastRawX = s.x; lastRawY = s.y;
       }
-    }
-    return hadStitch;
-  }
-
-  // ── 3-pass thread rendering: shadow → body → highlight ──────────
-  for (const seg of segments) {
-    const color = colors[seg.ci] ?? colors[seg.ci % colors.length] ?? "#ffffff";
-    ctx.lineCap = "round"; ctx.lineJoin = "round";
-
-    // Pass 1 — dense fill: OPAQUE dark base, wide enough to close every gap
-    //           between adjacent stitches (no fabric showing through)
-    if (buildPath(seg)) {
-      ctx.lineWidth = baseW * 3.2;
-      ctx.strokeStyle = shadeHex(color, -70);
-      ctx.stroke();
-    }
-
-    // Pass 2 — thread body: opaque, slightly less dark, narrower
-    if (buildPath(seg)) {
-      ctx.lineWidth = baseW * 2.0;
-      ctx.strokeStyle = shadeHex(color, -30);
-      ctx.stroke();
-    }
-
-    // Pass 3 — core: true color on top (illuminated centre of the thread)
-    if (buildPath(seg)) {
-      ctx.lineWidth = baseW * 1.0;
-      ctx.strokeStyle = color;
-      ctx.stroke();
-    }
-
-    // Pass 4 — highlight: thin bright streak (thread sheen)
-    if (buildPath(seg)) {
-      ctx.lineWidth = Math.max(0.3, baseW * 0.25);
-      ctx.strokeStyle = hexAlpha(shadeHex(color, 110), 0.55);
-      ctx.stroke();
     }
   }
 }
