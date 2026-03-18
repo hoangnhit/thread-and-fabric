@@ -797,12 +797,14 @@ export default function Fabrics() {
       <div style={{ position: "fixed", bottom: 20, left: 16, zIndex: 100, display: "flex", flexDirection: "column", gap: 10 }}>
         <a href="https://zalo.me/0969896403" target="_blank" rel="noopener noreferrer"
           title="Liên hệ Zalo"
-          style={{ width: 48, height: 48, borderRadius: "50%", background: "#0068ff", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 14px rgba(0,104,255,0.45)", textDecoration: "none", transition: "transform 0.18s, box-shadow 0.18s" }}
+          style={{ width: 48, height: 48, borderRadius: 14, background: "#0068ff", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 14px rgba(0,104,255,0.45)", textDecoration: "none", transition: "transform 0.18s, box-shadow 0.18s" }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "scale(1.12)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 6px 20px rgba(0,104,255,0.6)"; }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = "scale(1)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 14px rgba(0,104,255,0.45)"; }}
         >
-          <svg width="28" height="28" viewBox="0 0 48 48" fill="none">
-            <text x="50%" y="54%" dominantBaseline="middle" textAnchor="middle" fontFamily="Arial Black, Arial" fontWeight="900" fontSize="26" fill="white">Z</text>
+          <svg width="30" height="30" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="10" y="11" width="28" height="5" rx="2.5" fill="white"/>
+            <path d="M36 13L12 35" stroke="white" strokeWidth="5" strokeLinecap="round"/>
+            <rect x="10" y="32" width="28" height="5" rx="2.5" fill="white"/>
           </svg>
         </a>
         <a href="https://wa.me/84969896403" target="_blank" rel="noopener noreferrer"
