@@ -135,7 +135,8 @@ export default function Home() {
   const [scanText, setScanText] = useState("");
   const [foc1, setFoc1] = useState(false);
   const [foc2, setFoc2] = useState(false);
-  const hitRef = useRef<HTMLDivElement | null>(null);
+  const [focusedScan, setFocusedScan] = useState<Hit | null>(null);
+  const chartRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // hits
   const hit1 = findCode(q1);
@@ -155,16 +156,32 @@ export default function Home() {
     scanFound.forEach(h => pins.push({ hit: h, slotStyle: SCAN_STYLE }));
   }
 
-  const firstHit = pins[0]?.hit ?? null;
+  // scroll to chart when single/compare hit changes
+  const firstHit = (mode !== "scan") ? (pins[0]?.hit ?? null) : null;
   useEffect(() => {
     if (firstHit) {
-      setTimeout(() => hitRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 200);
+      setTimeout(() => {
+        chartRefs.current[firstHit.chartId]?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 200);
     }
   }, [firstHit?.chartId, firstHit?.col, firstHit?.row]);
 
+  // scroll to chart when scan chip is clicked
+  useEffect(() => {
+    if (focusedScan) {
+      setTimeout(() => {
+        chartRefs.current[focusedScan.chartId]?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+    }
+  }, [focusedScan]);
+
+  const scrollToCode = useCallback((h: Hit) => {
+    setFocusedScan(h);
+  }, []);
+
   const switchMode = useCallback((m: Mode) => {
     setMode(m);
-    setQ1(""); setQ2(""); setScanText("");
+    setQ1(""); setQ2(""); setScanText(""); setFocusedScan(null);
   }, []);
 
   /* pill button style */
@@ -347,8 +364,22 @@ export default function Home() {
                       </div>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                         {scanFound.map((h, i) => (
-                          <span key={i} style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 8, padding: "3px 10px", fontSize: 12, fontWeight: 700, color: "#92400e", fontFamily: "monospace" }}>
+                          <span
+                            key={i}
+                            onClick={() => scrollToCode(h)}
+                            title={`Cột ${h.col} · Hàng ${h.row + 1} — Bấm để xem`}
+                            style={{
+                              background: focusedScan?.code === h.code ? "#fbbf24" : "#fef3c7",
+                              border: `1.5px solid ${focusedScan?.code === h.code ? "#d97706" : "#fde68a"}`,
+                              borderRadius: 8, padding: "4px 12px",
+                              fontSize: 12, fontWeight: 700, color: "#92400e",
+                              fontFamily: "monospace", cursor: "pointer",
+                              transition: "all 0.15s",
+                              display: "inline-flex", alignItems: "center", gap: 4,
+                            }}
+                          >
                             {h.code}
+                            <span style={{ fontSize: 10, opacity: 0.6 }}>↓</span>
                           </span>
                         ))}
                       </div>
@@ -380,8 +411,13 @@ export default function Home() {
         {CHARTS.map((chart) => {
           const chartPins = pins.filter(p => p.hit.chartId === chart.id);
           const isActive = chartPins.length > 0;
+          const isFocused = focusedScan?.chartId === chart.id;
           return (
-            <div key={chart.id} ref={isActive ? hitRef : undefined} style={{ marginBottom: 28 }}>
+            <div
+              key={chart.id}
+              ref={el => { chartRefs.current[chart.id] = el; }}
+              style={{ marginBottom: 28 }}
+            >
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                 <div style={{ width: 3, height: 18, borderRadius: 2, background: isActive ? "#059669" : "#d1fae5" }} />
                 <span style={{ fontSize: 11, fontWeight: 700, color: isActive ? "#065f46" : "#9ca3af", textTransform: "uppercase", letterSpacing: "0.1em" }}>
@@ -407,8 +443,12 @@ export default function Home() {
               </div>
               <div style={{
                 borderRadius: 16, overflow: "hidden",
-                boxShadow: isActive ? "0 0 0 2px #059669, 0 12px 36px rgba(5,150,105,0.18)" : "0 2px 12px rgba(0,0,0,0.08)",
-                border: `2px solid ${isActive ? "#059669" : "transparent"}`,
+                boxShadow: isFocused
+                  ? "0 0 0 3px #f59e0b, 0 12px 36px rgba(245,158,11,0.25)"
+                  : isActive
+                    ? "0 0 0 2px #059669, 0 12px 36px rgba(5,150,105,0.18)"
+                    : "0 2px 12px rgba(0,0,0,0.08)",
+                border: `2px solid ${isFocused ? "#f59e0b" : isActive ? "#059669" : "transparent"}`,
                 transition: "all 0.35s cubic-bezier(0.4,0,0.2,1)",
                 background: "#fff",
               }}>
