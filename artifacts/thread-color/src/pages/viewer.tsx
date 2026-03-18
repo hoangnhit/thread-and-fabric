@@ -310,37 +310,73 @@ function drawFabricTexture(ctx: CanvasRenderingContext2D, w: number, h: number, 
   }
 
   const cfgs = {
-    cloth:   { bg: "#111827", p1: "rgba(255,255,255,0.11)", p2: "rgba(255,255,255,0.05)", sp: 5, w1: 1.0, w2: 0.7 },
-    leather: { bg: "#0b0806", p1: "rgba(255,255,255,0.05)", p2: "rgba(255,255,255,0.02)", sp: 8, w1: 1.0, w2: 0.5 },
-    fleece:  { bg: "#1a1824", p1: "rgba(255,255,255,0.07)", p2: "rgba(255,255,255,0.07)", sp: 4, w1: 0.8, w2: 0.8 },
+    cloth: {
+      bg: "#0e1521",
+      warpColor: "rgba(255,255,255,0.09)", weftColor: "rgba(255,255,255,0.04)",
+      sp: 5, warpW: 0.9, weftW: 0.6, noise: true,
+    },
+    leather: {
+      bg: "#0a0806",
+      warpColor: "rgba(180,140,100,0.06)", weftColor: "rgba(180,140,100,0.03)",
+      sp: 9, warpW: 1.0, weftW: 0.6, noise: false,
+    },
+    fleece: {
+      bg: "#16141f",
+      warpColor: "rgba(255,255,255,0.06)", weftColor: "rgba(255,255,255,0.06)",
+      sp: 3.5, warpW: 0.7, weftW: 0.7, noise: true,
+    },
   };
   const cfg = cfgs[fabricType as keyof typeof cfgs] || cfgs.cloth;
 
   ctx.fillStyle = cfg.bg;
   ctx.fillRect(0, 0, w, h);
 
-  // Primary diagonal weave lines (lower-right direction: 45°)
+  // Warp threads (vertical lines)
   ctx.beginPath();
-  ctx.strokeStyle = cfg.p1;
-  ctx.lineWidth = cfg.w1;
-  const diag = Math.max(w, h) * 2;
-  for (let d = -diag; d < diag + diag; d += cfg.sp) {
-    ctx.moveTo(d, 0);
-    ctx.lineTo(d + h, h);
-  }
+  ctx.strokeStyle = cfg.warpColor;
+  ctx.lineWidth = cfg.warpW;
+  for (let x = 0; x < w; x += cfg.sp) { ctx.moveTo(x, 0); ctx.lineTo(x, h); }
   ctx.stroke();
 
-  // Cross weave lines (lower-left direction: 135°)
+  // Weft threads (horizontal lines)
   ctx.beginPath();
-  ctx.strokeStyle = cfg.p2;
-  ctx.lineWidth = cfg.w2;
-  for (let d = -diag; d < diag + diag; d += cfg.sp) {
-    ctx.moveTo(d + h, 0);
-    ctx.lineTo(d, h);
-  }
+  ctx.strokeStyle = cfg.weftColor;
+  ctx.lineWidth = cfg.weftW;
+  for (let y = 0; y < h; y += cfg.sp) { ctx.moveTo(0, y); ctx.lineTo(w, y); }
   ctx.stroke();
+
+  // Interlocking weave highlight dots at intersections (simulates over/under)
+  if (cfg.noise) {
+    ctx.fillStyle = "rgba(255,255,255,0.04)";
+    for (let x = 0; x < w; x += cfg.sp * 2) {
+      for (let y = (x / cfg.sp) % 2 === 0 ? 0 : cfg.sp; y < h; y += cfg.sp * 2) {
+        ctx.fillRect(x, y, cfg.sp * 0.8, cfg.sp * 0.8);
+      }
+    }
+  }
+
+  // Vignette — dark edges to frame the design
+  const vig = ctx.createRadialGradient(w/2, h/2, Math.min(w,h)*0.3, w/2, h/2, Math.max(w,h)*0.8);
+  vig.addColorStop(0, "rgba(0,0,0,0)");
+  vig.addColorStop(1, "rgba(0,0,0,0.55)");
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, w, h);
 
   ctx.restore();
+}
+
+/* ─── THREAD COLOR HELPERS ───────────────────────────────────────── */
+function shadeHex(hex: string, amount: number): string {
+  const n = parseInt(hex.replace("#","").padEnd(6,"0").slice(0,6), 16);
+  const clamp = (v: number) => Math.max(0, Math.min(255, v));
+  const r = clamp(((n >> 16) & 0xff) + amount);
+  const g = clamp(((n >> 8) & 0xff) + amount);
+  const b = clamp((n & 0xff) + amount);
+  return `#${r.toString(16).padStart(2,"0")}${g.toString(16).padStart(2,"0")}${b.toString(16).padStart(2,"0")}`;
+}
+function hexAlpha(hex: string, a: number): string {
+  const n = parseInt(hex.replace("#","").padEnd(6,"0").slice(0,6), 16);
+  return `rgba(${(n>>16)&0xff},${(n>>8)&0xff},${n&0xff},${a})`;
 }
 
 /* ─── CANVAS RENDERER ───────────────────────────────────────────── */
@@ -369,7 +405,7 @@ function renderDesign(
   const toSX=(x:number)=>canvas.width/2+(x-cx)*scale+offsetX;
   const toSY=(y:number)=>canvas.height/2+(y-cy)*scale+offsetY;
 
-  // Group into segments by color
+  // Group into color segments
   const segments: {start:number;end:number;ci:number}[] = [];
   let segStart=0, currentCI=0;
   const limit = Math.min(stitches.length-1, maxStitchIdx);
@@ -381,43 +417,62 @@ function renderDesign(
     }
   }
 
-  // Small-jump threshold in stitch units (3mm = 30 units; jumps shorter than this
-  // are bridged so the thread looks continuous rather than broken into segments)
-  const BRIDGE_THRESHOLD = 30;
+  const BRIDGE_THRESHOLD = 30; // stitch units (~3mm)
+  const baseW = Math.max(1.4, scale * 1.1);
 
-  for (const seg of segments) {
-    const color = colors[seg.ci] ?? colors[seg.ci%colors.length] ?? "#ffffff";
+  // Build the path for a segment, returns true if it had any STITCH points
+  function buildPath(seg: {start:number;end:number;ci:number}): boolean {
+    let penDown = false, lastRawX = 0, lastRawY = 0, hadStitch = false;
     ctx.beginPath();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = Math.max(1.2, scale * 1.0);
-    ctx.lineCap = "round"; ctx.lineJoin = "round";
-
-    let penDown = false;
-    let lastRawX = 0, lastRawY = 0; // stitch-unit coords of last drawn point
-
     for (let i = seg.start; i <= seg.end && i <= limit; i++) {
       const s = stitches[i];
       const sx = toSX(s.x), sy = toSY(s.y);
-
       if (s.type === "STITCH") {
         if (!penDown) { ctx.moveTo(sx, sy); penDown = true; }
         else ctx.lineTo(sx, sy);
-        lastRawX = s.x; lastRawY = s.y;
+        lastRawX = s.x; lastRawY = s.y; hadStitch = true;
       } else if (s.type === "JUMP") {
-        // Bridge small jumps so thread looks continuous
-        const jumpDist = Math.hypot(s.x - lastRawX, s.y - lastRawY);
-        if (penDown && jumpDist < BRIDGE_THRESHOLD) {
-          // Small jump — just moveTo (no line drawn, but pen stays logically down
-          // so next STITCH will connect from here)
-          ctx.moveTo(sx, sy);
-        } else {
-          penDown = false;
-        }
+        const dist = Math.hypot(s.x - lastRawX, s.y - lastRawY);
+        if (penDown && dist < BRIDGE_THRESHOLD) ctx.moveTo(sx, sy);
+        else penDown = false;
         lastRawX = s.x; lastRawY = s.y;
       }
-      // COLOR_CHANGE ends this segment, handled by outer loop
     }
-    ctx.stroke();
+    return hadStitch;
+  }
+
+  // ── 3-pass thread rendering: shadow → body → highlight ──────────
+  for (const seg of segments) {
+    const color = colors[seg.ci] ?? colors[seg.ci % colors.length] ?? "#ffffff";
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
+
+    // Pass 1 — shadow (wide, very dark, low opacity)
+    if (buildPath(seg)) {
+      ctx.lineWidth = baseW * 2.2;
+      ctx.strokeStyle = hexAlpha(shadeHex(color, -90), 0.45);
+      ctx.stroke();
+    }
+
+    // Pass 2 — thread body (main color, slightly darkened at edges via compositing)
+    if (buildPath(seg)) {
+      ctx.lineWidth = baseW * 1.6;
+      ctx.strokeStyle = shadeHex(color, -25);
+      ctx.stroke();
+    }
+
+    // Pass 3 — core color (bright, narrower)
+    if (buildPath(seg)) {
+      ctx.lineWidth = baseW * 1.0;
+      ctx.strokeStyle = color;
+      ctx.stroke();
+    }
+
+    // Pass 4 — highlight shimmer (bright streak, very thin)
+    if (baseW >= 1.0 && buildPath(seg)) {
+      ctx.lineWidth = Math.max(0.4, baseW * 0.35);
+      ctx.strokeStyle = hexAlpha(shadeHex(color, 110), 0.55);
+      ctx.stroke();
+    }
   }
 }
 
