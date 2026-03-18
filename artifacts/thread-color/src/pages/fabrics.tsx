@@ -10,26 +10,26 @@ const STORAGE_KEY = "gingko-fabric-catalog";
 
 /* ─── PRESET SOLID COLORS ────────────────────────────────────────── */
 const PRESET_COLORS = [
-  { name: "White",            hex: "#FFFFFF" },
-  { name: "Black",            hex: "#1C1C1C" },
-  { name: "Navy",             hex: "#1B2A4A" },
+  { name: "White",                    hex: "#F8F6F2" },
+  { name: "Black",                    hex: "#0D0D0D" },
+  { name: "Navy",                     hex: "#132246" },
   { name: "Blue Blue (Classic Blue)", hex: "#0F4C81" },
-  { name: "Powder Blue",      hex: "#AECFDF" },
-  { name: "Omphalodes",       hex: "#9BC4E2" },
-  { name: "Aqua",             hex: "#3CBFB4" },
-  { name: "Biscay Green",     hex: "#4A7B5E" },
-  { name: "Evergreen",        hex: "#014421" },
-  { name: "True Red",         hex: "#CC2200" },
-  { name: "Fandango Pink",    hex: "#E63C6E" },
-  { name: "Orchid Pink",      hex: "#DF80AD" },
-  { name: "Anemone",          hex: "#7B3FA8" },
-  { name: "Purple",           hex: "#6B21A8" },
-  { name: "Perfectly Lale",   hex: "#B89EC8" },
-  { name: "Pastel Lilac Sachet", hex: "#DDD0EA" },
-  { name: "Desert Flower",    hex: "#FF7F6E" },
-  { name: "Easter Yellow",    hex: "#F9E68C" },
-  { name: "Antarctica",       hex: "#E8EDF0" },
-  { name: "White Clover",     hex: "#F5F5F0" },
+  { name: "Powder Blue",              hex: "#97C4D8" },
+  { name: "Omphalodes",               hex: "#6FA8C8" },
+  { name: "Aqua",                     hex: "#008C8C" },
+  { name: "Biscay Green",             hex: "#2E6B50" },
+  { name: "Evergreen",                hex: "#0D3B27" },
+  { name: "True Red",                 hex: "#C0151F" },
+  { name: "Fandango Pink",            hex: "#D63065" },
+  { name: "Orchid Pink",              hex: "#D4789A" },
+  { name: "Anemone",                  hex: "#6E2B8C" },
+  { name: "Purple",                   hex: "#5A1A8A" },
+  { name: "Perfectly Lale",           hex: "#9A7CB8" },
+  { name: "Pastel Lilac Sachet",      hex: "#CDBFDC" },
+  { name: "Desert Flower",            hex: "#E07060" },
+  { name: "Easter Yellow",            hex: "#F2D55A" },
+  { name: "Antarctica",               hex: "#D8E2E8" },
+  { name: "White Clover",             hex: "#ECEDE0" },
 ];
 
 function colorToDataUrl(hex: string, name: string): string {
@@ -64,9 +64,11 @@ function saveFabrics(items: FabricItem[]) {
 export default function Fabrics() {
   const [fabrics, setFabrics] = useState<FabricItem[]>(loadFabrics);
   const [showAdd, setShowAdd] = useState(false);
+  const [addTab, setAddTab] = useState<"photo" | "color">("color");
   const [newName, setNewName] = useState("");
   const [newImage, setNewImage] = useState<string | null>(null);
   const [newImageFileName, setNewImageFileName] = useState("");
+  const [pickerHex, setPickerHex] = useState("#4A90D9");
   const [search, setSearch] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
@@ -84,18 +86,27 @@ export default function Fabrics() {
     reader.readAsDataURL(file);
   };
 
-  const handleAdd = () => {
-    if (!newName.trim() || !newImage) return;
-    const item: FabricItem = {
-      id: Date.now().toString(),
-      name: newName.trim(),
-      image: newImage,
-    };
-    setFabrics(prev => [item, ...prev]);
+  const resetAddForm = () => {
     setNewName("");
     setNewImage(null);
     setNewImageFileName("");
+    setPickerHex("#4A90D9");
+    setAddTab("color");
     setShowAdd(false);
+  };
+
+  const handleAdd = () => {
+    const resolvedImage = addTab === "color"
+      ? colorToDataUrl(pickerHex, newName.trim() || pickerHex)
+      : newImage;
+    if (!newName.trim() || !resolvedImage) return;
+    const item: FabricItem = {
+      id: Date.now().toString(),
+      name: newName.trim(),
+      image: resolvedImage,
+    };
+    setFabrics(prev => [item, ...prev]);
+    resetAddForm();
   };
 
   const handleAddPresets = () => {
@@ -208,39 +219,86 @@ export default function Fabrics() {
               position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 200,
               display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
             }}
-              onClick={e => { if (e.target === e.currentTarget) { setShowAdd(false); setNewImage(null); setNewName(""); setNewImageFileName(""); } }}
+              onClick={e => { if (e.target === e.currentTarget) resetAddForm(); }}
             >
               <div style={{ background: "white", borderRadius: 20, padding: 24, width: "100%", maxWidth: 380, boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
-                <h3 style={{ margin: "0 0 18px", fontSize: 17, fontWeight: 800, color: "#111" }}>➕ Thêm mẫu vải</h3>
+                <h3 style={{ margin: "0 0 14px", fontSize: 17, fontWeight: 800, color: "#111" }}>➕ Thêm mẫu vải</h3>
 
-                {/* Drop zone */}
-                <div
-                  ref={dropRef}
-                  onDragOver={e => { e.preventDefault(); (dropRef.current!).style.borderColor = "#059669"; }}
-                  onDragLeave={() => (dropRef.current!).style.borderColor = "#d1fae5"}
-                  onDrop={e => { e.preventDefault(); (dropRef.current!).style.borderColor = "#d1fae5"; const f = e.dataTransfer.files[0]; if (f) handleFileSelect(f); }}
-                  onClick={() => fileRef.current?.click()}
-                  style={{
-                    border: "2px dashed #d1fae5", borderRadius: 14, padding: "20px 16px",
-                    textAlign: "center", cursor: "pointer", background: "#f0fdf4",
-                    marginBottom: 14, transition: "border-color 0.2s", minHeight: 120,
-                    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8,
-                  }}
-                >
-                  {newImage ? (
-                    <>
-                      <img src={newImage} alt="preview" style={{ maxHeight: 100, maxWidth: "100%", borderRadius: 10, objectFit: "cover" }} />
-                      <div style={{ fontSize: 11, color: "#6b7280" }}>{newImageFileName}</div>
-                    </>
-                  ) : (
-                    <>
-                      <div style={{ fontSize: 32 }}>📷</div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: "#059669" }}>Bấm hoặc kéo ảnh vào đây</div>
-                      <div style={{ fontSize: 11, color: "#9ca3af" }}>JPG, PNG, WEBP</div>
-                    </>
-                  )}
+                {/* Tab switcher */}
+                <div style={{ display: "flex", background: "#f3f4f6", borderRadius: 10, padding: 3, marginBottom: 16 }}>
+                  {(["color", "photo"] as const).map(t => (
+                    <button key={t} onClick={() => setAddTab(t)} style={{
+                      flex: 1, padding: "7px", border: "none", borderRadius: 8, cursor: "pointer",
+                      fontWeight: 700, fontSize: 13,
+                      background: addTab === t ? "white" : "transparent",
+                      color: addTab === t ? "#059669" : "#6b7280",
+                      boxShadow: addTab === t ? "0 1px 4px rgba(0,0,0,0.1)" : "none",
+                      transition: "all 0.15s",
+                    }}>
+                      {t === "color" ? "🎨 Chọn màu" : "📷 Upload ảnh"}
+                    </button>
+                  ))}
                 </div>
-                <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleFileSelect(f); e.target.value = ""; }} />
+
+                {/* Color picker tab */}
+                {addTab === "color" && (
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{
+                      borderRadius: 12, height: 110, marginBottom: 10,
+                      background: pickerHex,
+                      border: "1.5px solid #e5e7eb",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                      <span style={{
+                        fontSize: 13, fontWeight: 700, padding: "4px 10px",
+                        borderRadius: 6, background: "rgba(255,255,255,0.55)",
+                        color: "#374151",
+                      }}>{pickerHex.toUpperCase()}</span>
+                    </div>
+                    <input
+                      type="color"
+                      value={pickerHex}
+                      onChange={e => setPickerHex(e.target.value)}
+                      style={{
+                        width: "100%", height: 42, border: "1.5px solid #e5e7eb",
+                        borderRadius: 10, cursor: "pointer", padding: 2,
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Photo upload tab */}
+                {addTab === "photo" && (
+                  <>
+                    <div
+                      ref={dropRef}
+                      onDragOver={e => { e.preventDefault(); dropRef.current!.style.borderColor = "#059669"; }}
+                      onDragLeave={() => { dropRef.current!.style.borderColor = "#d1fae5"; }}
+                      onDrop={e => { e.preventDefault(); dropRef.current!.style.borderColor = "#d1fae5"; const f = e.dataTransfer.files[0]; if (f) handleFileSelect(f); }}
+                      onClick={() => fileRef.current?.click()}
+                      style={{
+                        border: "2px dashed #d1fae5", borderRadius: 14, padding: "20px 16px",
+                        textAlign: "center", cursor: "pointer", background: "#f0fdf4",
+                        marginBottom: 14, transition: "border-color 0.2s", minHeight: 110,
+                        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8,
+                      }}
+                    >
+                      {newImage ? (
+                        <>
+                          <img src={newImage} alt="preview" style={{ maxHeight: 90, maxWidth: "100%", borderRadius: 10, objectFit: "cover" }} />
+                          <div style={{ fontSize: 11, color: "#6b7280" }}>{newImageFileName}</div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ fontSize: 32 }}>📷</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: "#059669" }}>Bấm hoặc kéo ảnh vào đây</div>
+                          <div style={{ fontSize: 11, color: "#9ca3af" }}>JPG, PNG, WEBP</div>
+                        </>
+                      )}
+                    </div>
+                    <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handleFileSelect(f); e.target.value = ""; }} />
+                  </>
+                )}
 
                 {/* Name input */}
                 <input
@@ -258,16 +316,17 @@ export default function Fabrics() {
 
                 <div style={{ display: "flex", gap: 10 }}>
                   <button
-                    onClick={() => { setShowAdd(false); setNewImage(null); setNewName(""); setNewImageFileName(""); }}
+                    onClick={resetAddForm}
                     style={{ flex: 1, padding: "10px", border: "1.5px solid #e5e7eb", borderRadius: 10, background: "white", cursor: "pointer", fontSize: 14, fontWeight: 600, color: "#6b7280" }}
                   >Huỷ</button>
                   <button
                     onClick={handleAdd}
-                    disabled={!newName.trim() || !newImage}
+                    disabled={!newName.trim() || (addTab === "photo" && !newImage)}
                     style={{
-                      flex: 2, padding: "10px", border: "none", borderRadius: 10, cursor: (!newName.trim() || !newImage) ? "not-allowed" : "pointer",
+                      flex: 2, padding: "10px", border: "none", borderRadius: 10,
+                      cursor: (!newName.trim() || (addTab === "photo" && !newImage)) ? "not-allowed" : "pointer",
                       fontSize: 14, fontWeight: 700, color: "white",
-                      background: (!newName.trim() || !newImage) ? "#9ca3af" : "#059669",
+                      background: (!newName.trim() || (addTab === "photo" && !newImage)) ? "#9ca3af" : "#059669",
                       transition: "background 0.15s",
                     }}
                   >✅ Lưu</button>
