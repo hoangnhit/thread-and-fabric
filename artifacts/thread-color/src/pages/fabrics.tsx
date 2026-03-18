@@ -3,10 +3,50 @@ import { useState, useRef, useEffect } from "react";
 interface FabricItem {
   id: string;
   name: string;
-  image: string; // base64
+  image: string; // base64 or data URL
 }
 
 const STORAGE_KEY = "gingko-fabric-catalog";
+
+/* ─── PRESET SOLID COLORS ────────────────────────────────────────── */
+const PRESET_COLORS = [
+  { name: "White",            hex: "#FFFFFF" },
+  { name: "Black",            hex: "#1C1C1C" },
+  { name: "Navy",             hex: "#1B2A4A" },
+  { name: "Blue Blue (Classic Blue)", hex: "#0F4C81" },
+  { name: "Powder Blue",      hex: "#AECFDF" },
+  { name: "Omphalodes",       hex: "#9BC4E2" },
+  { name: "Aqua",             hex: "#3CBFB4" },
+  { name: "Biscay Green",     hex: "#4A7B5E" },
+  { name: "Evergreen",        hex: "#014421" },
+  { name: "True Red",         hex: "#CC2200" },
+  { name: "Fandango Pink",    hex: "#E63C6E" },
+  { name: "Orchid Pink",      hex: "#DF80AD" },
+  { name: "Anemone",          hex: "#7B3FA8" },
+  { name: "Purple",           hex: "#6B21A8" },
+  { name: "Perfectly Lale",   hex: "#B89EC8" },
+  { name: "Pastel Lilac Sachet", hex: "#DDD0EA" },
+  { name: "Desert Flower",    hex: "#FF7F6E" },
+  { name: "Easter Yellow",    hex: "#F9E68C" },
+  { name: "Antarctica",       hex: "#E8EDF0" },
+  { name: "White Clover",     hex: "#F5F5F0" },
+];
+
+function colorToDataUrl(hex: string, name: string): string {
+  const isDark = (() => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return (r * 299 + g * 587 + b * 114) / 1000 < 128;
+  })();
+  const textColor = isDark ? "#ffffff" : "#374151";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240">
+    <rect width="320" height="240" fill="${hex}" stroke="${isDark ? "none" : "#d1d5db"}" stroke-width="1"/>
+    <text x="160" y="130" font-family="system-ui,sans-serif" font-size="18" font-weight="700"
+      fill="${textColor}" text-anchor="middle" opacity="0.55">${name}</text>
+  </svg>`;
+  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+}
 
 function loadFabrics(): FabricItem[] {
   try {
@@ -56,6 +96,19 @@ export default function Fabrics() {
     setNewImage(null);
     setNewImageFileName("");
     setShowAdd(false);
+  };
+
+  const handleAddPresets = () => {
+    const existing = new Set(fabrics.map(f => f.name.toLowerCase()));
+    const toAdd: FabricItem[] = PRESET_COLORS
+      .filter(p => !existing.has(p.name.toLowerCase()))
+      .map((p, i) => ({
+        id: `preset-${Date.now()}-${i}`,
+        name: p.name,
+        image: colorToDataUrl(p.hex, p.name),
+      }));
+    if (toAdd.length === 0) return;
+    setFabrics(prev => [...prev, ...toAdd]);
   };
 
   const handleDelete = (id: string) => {
@@ -126,6 +179,17 @@ export default function Fabrics() {
                 }}
               />
             </div>
+            <button
+              onClick={handleAddPresets}
+              title="Thêm 20 màu cơ bản (White, Black, Blue, Red...)"
+              style={{
+                background: "#f59e0b", color: "white", border: "none", borderRadius: 10,
+                padding: "8px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              🎨 Màu cơ bản
+            </button>
             <button
               onClick={() => setShowAdd(true)}
               style={{
