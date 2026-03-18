@@ -437,38 +437,33 @@ function renderDesign(
   }
 
   const BRIDGE_THRESHOLD = 30; // stitch units (~3mm)
-  // Thin sewing thread: radius ≈ 0.5–0.9 px at normal zoom.
-  // Each stitch is a slim filled rectangle — no fat-tube look.
-  const threadR = Math.max(0.55, scale * 0.85);
+
+  // Per-stitch radial gradient stroke — mimics light reflecting off cylindrical thread.
+  // Radial gradient centered at stitch start, radius = stitch_length × 1.4.
+  // Color stops: dark → true → bright → true → dark (5-stop for natural sheen).
+  // Set stable stroke state once — avoids redundant per-stitch ctx property writes.
+  ctx.lineWidth = Math.max(2, scale * 3);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
 
   function drawThread(x1:number,y1:number,x2:number,y2:number,color:string) {
     const dx = x2-x1, dy = y2-y1;
     const len = Math.hypot(dx, dy);
     if (len < 0.2) return;
-    const ux = dx/len, uy = dy/len;
-    const px = -uy, py = ux;
-    const r = threadR;
-    const ext = r * 0.4; // tiny cap to prevent visible gaps
 
-    // Very subtle 3-stop gradient across the thread width (dark edge → slight highlight → dark edge)
-    // Thin threads don't need much shading — the pattern itself creates the texture.
-    const mx = (x1+x2)/2, my = (y1+y2)/2;
-    const grad = ctx.createLinearGradient(
-      mx + px*r, my + py*r,
-      mx - px*r, my - py*r
-    );
-    grad.addColorStop(0,   shadeHex(color, -28));
-    grad.addColorStop(0.5, shadeHex(color,  18));
-    grad.addColorStop(1,   shadeHex(color, -28));
+    const gradRadius = len * 1.4;
+    const grad = ctx.createRadialGradient(x1, y1, 0, x1, y1, gradRadius);
+    grad.addColorStop(0,    shadeHex(color, -55));
+    grad.addColorStop(0.25, color);
+    grad.addColorStop(0.5,  shadeHex(color,  55));
+    grad.addColorStop(0.75, color);
+    grad.addColorStop(1,    shadeHex(color, -55));
 
     ctx.beginPath();
-    ctx.moveTo(x1 - ux*ext + px*r,  y1 - uy*ext + py*r);
-    ctx.lineTo(x2 + ux*ext + px*r,  y2 + uy*ext + py*r);
-    ctx.lineTo(x2 + ux*ext - px*r,  y2 + uy*ext - py*r);
-    ctx.lineTo(x1 - ux*ext - px*r,  y1 - uy*ext - py*r);
-    ctx.closePath();
-    ctx.fillStyle = grad;
-    ctx.fill();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.strokeStyle = grad;
+    ctx.stroke();
   }
 
   // Render each color segment stitch-by-stitch
