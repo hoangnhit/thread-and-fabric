@@ -256,9 +256,6 @@ export default function Home() {
           <h1 style={{ margin: "0 0 6px", fontSize: 26, fontWeight: 800, color: "white", letterSpacing: "-0.02em" }}>
             Tra Cứu Màu Chỉ Thêu
           </h1>
-          <p style={{ margin: 0, fontSize: 13, color: "rgba(255,255,255,0.65)" }}>
-            High-Grade Embroidery Thread · 100% Polyester
-          </p>
         </div>
       </div>
 
@@ -618,9 +615,6 @@ export default function Home() {
         </div>
       )}
 
-      <div style={{ textAlign: "center", padding: "20px 16px", borderTop: "1px solid #e5e7eb", background: "white", fontSize: 12, color: "#9ca3af" }}>
-        Gingko Brand High-Grade Embroidery Thread · 100% Polyester
-      </div>
 
       <style>{`
         @keyframes pa {

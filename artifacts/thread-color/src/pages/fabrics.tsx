@@ -581,9 +581,6 @@ export default function Fabrics() {
         </div>
       </main>
 
-      <div style={{ textAlign: "center", padding: "20px 16px", borderTop: "1px solid #e5e7eb", background: "white", fontSize: 12, color: "#9ca3af" }}>
-        Gingko Brand High-Grade Embroidery Thread · 100% Polyester
-      </div>
 
       {/* ── ZOOM LIGHTBOX ── */}
       {zoomItem && (
