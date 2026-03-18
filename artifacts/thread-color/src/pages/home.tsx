@@ -217,7 +217,7 @@ export default function Home() {
     whiteSpace: "nowrap" as const,
   });
 
-  /* sub-mode pill style */
+  /* sub-mode pill style (kept for reference) */
   const subPill = (active: boolean, color = "#059669") => ({
     padding: "5px 14px", borderRadius: 20, cursor: "pointer",
     fontSize: 12, fontWeight: 600,
@@ -225,6 +225,16 @@ export default function Home() {
     background: active ? color : "white",
     color: active ? "white" : "#6b7280",
     transition: "all 0.15s", whiteSpace: "nowrap" as const,
+  });
+
+  /* sub-tab (underline indicator, same style for brand row & mode row) */
+  const subTab = (active: boolean, color = "#059669"): CSSProperties => ({
+    flex: 1, padding: "7px 4px 9px",
+    background: "none", border: "none", cursor: "pointer",
+    fontWeight: active ? 700 : 500, fontSize: 12.5,
+    color: active ? color : "#9ca3af",
+    borderBottom: active ? `2px solid ${color}` : "2px solid transparent",
+    marginBottom: -1, transition: "all 0.15s", whiteSpace: "nowrap",
   });
 
   const inputBox = (focused: boolean, accent = "#f59e0b") => ({
@@ -293,30 +303,18 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* Tier 2a — brand filter + mode pills on same row */}
-              <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap", alignItems: "center" }}>
-                {/* brand pills */}
-                {([ 
-                  { key: "all",      label: "Tất cả",         bg: "#f1f5f9", abg: "#374151", col: "#9ca3af", acol: "#fff", bd: "#e5e7eb", abd: "#374151" },
-                  { key: "gingko",   label: "🧵 Chỉ GINGKO",  bg: "#f1f5f9", abg: "#064e3b", col: "#6b7280", acol: "#34d399", bd: "#e5e7eb", abd: "#059669" },
-                  { key: "dantuong", label: "🪡 Chỉ danh tường", bg: "#f1f5f9", abg: "#1e3a5f", col: "#6b7280", acol: "#60a5fa", bd: "#e5e7eb", abd: "#3b82f6" },
-                ] as const).map(b => (
-                  <button key={b.key} onClick={() => setBrand(b.key)}
-                    style={{
-                      padding: "5px 13px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 700,
-                      background: brand === b.key ? b.abg : b.bg,
-                      color: brand === b.key ? b.acol : b.col,
-                      border: `1.5px solid ${brand === b.key ? b.abd : b.bd}`,
-                      transition: "all 0.15s",
-                    }}>
-                    {b.label}
-                  </button>
-                ))}
+              {/* Tier 2 — brand (row 1) */}
+              <div style={{ display: "flex", borderBottom: "1px solid #e5e7eb", marginBottom: 0 }}>
+                <button style={subTab(brand === "all", "#374151")} onClick={() => setBrand("all")}>Tất cả</button>
+                <button style={subTab(brand === "gingko", "#059669")} onClick={() => setBrand("gingko")}>🧵 Chỉ GINGKO</button>
+                <button style={subTab(brand === "dantuong", "#3b82f6")} onClick={() => setBrand("dantuong")}>🪡 Chỉ danh tường</button>
+              </div>
 
-                {/* mode pills */}
-                <button style={subPill(mode === "single")} onClick={() => switchMode("single")}>🔍 Tìm mã</button>
-                <button style={subPill(mode === "compare", "#0ea5e9")} onClick={() => switchMode("compare")}>↔️ So sánh 2 mã</button>
-                <button style={subPill(mode === "scan", "#7c3aed")} onClick={() => switchMode("scan")}>📋 Quét danh sách</button>
+              {/* Tier 3 — mode (row 2), same style */}
+              <div style={{ display: "flex", borderBottom: "1px solid #e5e7eb", marginBottom: 18 }}>
+                <button style={subTab(mode === "single", "#059669")} onClick={() => switchMode("single")}>🔍 Tìm mã</button>
+                <button style={subTab(mode === "compare", "#0ea5e9")} onClick={() => switchMode("compare")}>↔️ So sánh 2 mã</button>
+                <button style={subTab(mode === "scan", "#7c3aed")} onClick={() => switchMode("scan")}>📋 Quét danh sách</button>
               </div>
             </div>
           )}
