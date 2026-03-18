@@ -66,66 +66,49 @@ function extractCodes(text: string): string[] {
 type Mode = "single" | "compare" | "scan" | "emb";
 
 /* ─── EMB BINARY PARSER ──────────────────────────────────────────── */
-interface EmbStep { order: number; code: string; hit: Hit | null; }
+interface EmbStep { order: number; name: string; }
 
+/** Extract readable thread-name strings from embroidery binary */
 function parseEmbBinary(buffer: ArrayBuffer): EmbStep[] {
   const bytes = new Uint8Array(buffer);
-  const results: { offset: number; code: string }[] = [];
+  const results: { offset: number; name: string }[] = [];
 
-  // Build a lookup set of all known codes (uppercase)
-  const knownCodes = new Set(ALL_CODES.map(h => h.code.toUpperCase()));
-
-  // Scan byte-by-byte for printable ASCII sequences that match known codes
-  // Also try UTF-16LE (common in Windows software): every other byte is 0
-  const textLE = extractTextFromBytes(bytes, true);
-  const textRaw = extractTextFromBytes(bytes, false);
-
-  for (const { text, offset, stride } of [
-    { text: textRaw, offset: 0, stride: 1 },
-    { text: textLE, offset: 0, stride: 2 },
-  ]) {
-    // Find all Gingko-style codes in the extracted text
-    const regex = /\b([OGo]0?\d{3,4}|\d{4,5}|[A-Z]\d{3,4})\b/g;
-    let m: RegExpExecArray | null;
-    while ((m = regex.exec(text)) !== null) {
-      const candidate = m[1].toUpperCase().replace(/^O0/, "O0"); // keep as-is
-      if (knownCodes.has(candidate)) {
-        const fileOffset = m.index * stride;
-        // deduplicate by proximity (same code within 8 bytes = same occurrence)
-        const prev = results.find(r => r.code === candidate && Math.abs(r.offset - fileOffset) < 200);
-        if (!prev) results.push({ offset: fileOffset, code: candidate });
+  // Try both raw ASCII and UTF-16LE (Windows)
+  for (const stride of [1, 2]) {
+    let run = "";
+    let runStart = 0;
+    for (let i = 0; i <= bytes.length - stride; i += stride) {
+      const b = bytes[i];
+      const nextOk = stride === 2 ? bytes[i + 1] === 0 : true;
+      if (b >= 32 && b < 127 && nextOk) {
+        if (!run) runStart = i;
+        run += String.fromCharCode(b);
+      } else {
+        if (run.length >= 2 && run.length <= 40) {
+          const trimmed = run.trim();
+          if (trimmed.length >= 2 && /[A-Za-z0-9]/.test(trimmed)) {
+            results.push({ offset: runStart * (stride === 2 ? 1 : 1) + (stride === 2 ? runStart : 0), name: trimmed });
+          }
+        }
+        run = "";
       }
     }
   }
 
-  // Sort by file offset → preserves the order colors appear in the file
+  // Sort by file offset
   results.sort((a, b) => a.offset - b.offset);
 
-  // Remove exact duplicates keeping first occurrence
-  const seen = new Set<string>();
-  const unique: { offset: number; code: string }[] = [];
+  // Deduplicate consecutive identical names (same string stored twice)
+  const steps: EmbStep[] = [];
+  let prev = "";
+  let order = 1;
   for (const r of results) {
-    if (!seen.has(r.code)) { seen.add(r.code); unique.push(r); }
+    if (r.name !== prev) {
+      steps.push({ order: order++, name: r.name });
+      prev = r.name;
+    }
   }
-
-  return unique.map((r, i) => ({
-    order: i + 1,
-    code: r.code,
-    hit: findCode(r.code),
-  }));
-}
-
-function extractTextFromBytes(bytes: Uint8Array, utf16le: boolean): string {
-  const chars: string[] = [];
-  const step = utf16le ? 2 : 1;
-  for (let i = 0; i < bytes.length - step + 1; i += step) {
-    const b = bytes[i];
-    const next = utf16le ? bytes[i + 1] : 0;
-    if (utf16le && next !== 0) { chars.push(" "); continue; }
-    if (b >= 32 && b < 127) chars.push(String.fromCharCode(b));
-    else chars.push(" ");
-  }
-  return chars.join("");
+  return steps;
 }
 
 /* ─── CHART IMAGE ──────────────────────────────────────────────── */
@@ -217,9 +200,6 @@ export default function Home() {
   const scanFound = scanCodes.map(c => findCode(c)).filter(Boolean) as Hit[];
   const scanMissed = scanCodes.filter(c => !findCode(c));
 
-  // emb results
-  const embFound = embSteps.filter(s => s.hit !== null) as (EmbStep & { hit: Hit })[];
-
   // build pins array
   const pins: { hit: Hit; slotStyle: typeof SLOT_STYLES[0] }[] = [];
   if (mode === "single" || mode === "compare") {
@@ -227,8 +207,6 @@ export default function Home() {
     if (hit2) pins.push({ hit: hit2, slotStyle: SLOT_STYLES[1] });
   } else if (mode === "scan") {
     scanFound.forEach(h => pins.push({ hit: h, slotStyle: SCAN_STYLE }));
-  } else if (mode === "emb") {
-    embFound.forEach(s => pins.push({ hit: s.hit, slotStyle: SCAN_STYLE }));
   }
 
   // scroll to chart when single/compare hit changes
@@ -519,41 +497,28 @@ export default function Home() {
               {/* Results */}
               {!embLoading && embSteps.length > 0 && (
                 <div style={{ marginTop: 14 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#059669", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                    ✅ Tìm thấy {embFound.length} bước chỉ trong file · xem bảng bên phải →
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#b91c1c", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    📋 {embSteps.length} bước chỉ theo thứ tự
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 260, overflow: "auto" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 360, overflow: "auto", paddingRight: 4 }}>
                     {embSteps.map((s) => (
-                      <div
-                        key={s.order}
-                        onClick={() => s.hit && scrollToCode(s.hit)}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 10,
-                          padding: "7px 12px", borderRadius: 10,
-                          background: s.hit ? (focusedScan?.code === s.code ? "#f0fdf4" : "#fefce8") : "#fef2f2",
-                          border: `1.5px solid ${s.hit ? (focusedScan?.code === s.code ? "#86efac" : "#fde68a") : "#fecaca"}`,
-                          cursor: s.hit ? "pointer" : "default",
-                          transition: "all 0.15s",
-                        }}
-                      >
-                        <span style={{ fontSize: 11, fontWeight: 800, color: "#9ca3af", minWidth: 22, textAlign: "right" }}>
-                          #{s.order}
-                        </span>
+                      <div key={s.order} style={{
+                        display: "flex", alignItems: "center", gap: 10,
+                        padding: "7px 12px", borderRadius: 10,
+                        background: s.order % 2 === 0 ? "#fafafa" : "white",
+                        border: "1px solid #f1f5f9",
+                      }}>
                         <span style={{
-                          fontFamily: "monospace", fontSize: 13, fontWeight: 700,
-                          color: s.hit ? (focusedScan?.code === s.code ? "#059669" : "#92400e") : "#dc2626",
-                          minWidth: 60,
+                          fontSize: 11, fontWeight: 800, color: "white",
+                          background: "#dc2626", borderRadius: 6,
+                          padding: "2px 6px", minWidth: 28, textAlign: "center",
+                          flexShrink: 0,
                         }}>
-                          {s.code}
+                          {s.order}
                         </span>
-                        {s.hit ? (
-                          <span style={{ fontSize: 11, color: "#6b7280" }}>
-                            Cột <b>{s.hit.col}</b> · Hàng <b>{s.hit.row + 1}</b>
-                          </span>
-                        ) : (
-                          <span style={{ fontSize: 11, color: "#dc2626" }}>không có trong bảng</span>
-                        )}
-                        {s.hit && focusedScan?.code === s.code && <span style={{ marginLeft: "auto", fontSize: 12, color: "#059669" }}>◀</span>}
+                        <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: "#1e293b", flex: 1, wordBreak: "break-all" }}>
+                          {s.name}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -562,8 +527,8 @@ export default function Home() {
 
               {!embLoading && embFileName && embSteps.length === 0 && (
                 <div style={{ marginTop: 14, padding: "12px 16px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, fontSize: 13, color: "#dc2626", textAlign: "center" }}>
-                  Không tìm thấy mã màu Gingko nào trong file này.<br />
-                  <span style={{ fontSize: 11, color: "#9ca3af" }}>File có thể dùng bảng màu khác hoặc định dạng không hỗ trợ.</span>
+                  Không đọc được dữ liệu từ file này.<br />
+                  <span style={{ fontSize: 11, color: "#9ca3af" }}>Thử với định dạng .dst, .pes, .jef hoặc .vp3.</span>
                 </div>
               )}
             </>
@@ -617,79 +582,67 @@ export default function Home() {
                 transition: "all 0.35s cubic-bezier(0.4,0,0.2,1)",
                 background: "#fff",
               }}>
-                <ChartImage chart={chart} pins={chartPins} focusedCode={(mode === "scan" || mode === "emb") ? focusedScan?.code ?? null : null} />
+                <ChartImage chart={chart} pins={chartPins} focusedCode={mode === "scan" ? focusedScan?.code ?? null : null} />
               </div>
             </div>
           );
         })}
       </main>
 
-      {/* ── FLOATING PANEL: scan or emb found codes ── */}
-      {((mode === "scan" && scanFound.length > 0) || (mode === "emb" && embFound.length > 0)) && (() => {
-        const isEmb = mode === "emb";
-        const panelColor = isEmb ? "#dc2626" : "#059669";
-        const panelBg = isEmb ? "#fff5f5" : "#f0fdf4";
-        const count = isEmb ? embFound.length : scanFound.length;
-        const items: { hit: Hit; label: string; order?: number }[] = isEmb
-          ? embFound.map(s => ({ hit: s.hit, label: s.code, order: s.order }))
-          : scanFound.map(h => ({ hit: h, label: h.code }));
-        return (
+      {/* ── FLOATING PANEL: scan found codes ── */}
+      {mode === "scan" && scanFound.length > 0 && (
+        <div style={{
+          position: "fixed", right: 10, top: "50%", transform: "translateY(-50%)",
+          width: 88, zIndex: 50,
+          background: "white",
+          borderRadius: 14,
+          boxShadow: "0 8px 28px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.1)",
+          border: "1.5px solid #e5e7eb",
+          display: "flex", flexDirection: "column",
+          maxHeight: "70vh", overflow: "hidden",
+        }}>
           <div style={{
-            position: "fixed", right: 10, top: "50%", transform: "translateY(-50%)",
-            width: 88, zIndex: 50,
-            background: "white",
-            borderRadius: 14,
-            boxShadow: "0 8px 28px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.1)",
-            border: "1.5px solid #e5e7eb",
-            display: "flex", flexDirection: "column",
-            maxHeight: "70vh", overflow: "hidden",
+            padding: "8px 6px 6px", textAlign: "center",
+            borderBottom: "1px solid #f1f5f9",
+            background: "#f0fdf4",
+            borderRadius: "12px 12px 0 0",
           }}>
-            <div style={{
-              padding: "8px 6px 6px", textAlign: "center",
-              borderBottom: "1px solid #f1f5f9",
-              background: panelBg,
-              borderRadius: "12px 12px 0 0",
-            }}>
-              <div style={{ fontSize: 10, fontWeight: 800, color: panelColor, letterSpacing: "0.04em" }}>
-                {isEmb ? "📂" : "✅"} {count} {isEmb ? "BƯỚC" : "MÃ"}
-              </div>
-              <div style={{ fontSize: 9, color: "#9ca3af", marginTop: 1 }}>Bấm để xem</div>
-            </div>
-            <div style={{ overflow: "auto", padding: "6px 5px", display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
-              {items.map((item, i) => {
-                const isSelected = focusedScan?.code === item.hit.code;
-                return (
-                  <button
-                    key={i}
-                    onClick={() => scrollToCode(item.hit)}
-                    title={`Cột ${item.hit.col} · Hàng ${item.hit.row + 1}`}
-                    style={{
-                      border: "1.5px solid",
-                      borderColor: isSelected ? "#059669" : (isEmb ? "#fca5a5" : "#fde68a"),
-                      borderRadius: 8,
-                      padding: "5px 3px",
-                      fontSize: 10.5,
-                      fontWeight: 700,
-                      fontFamily: "monospace",
-                      cursor: "pointer",
-                      background: isSelected ? "#059669" : (isEmb ? "#fff5f5" : "#fef3c7"),
-                      color: isSelected ? "white" : (isEmb ? "#b91c1c" : "#92400e"),
-                      textAlign: "center",
-                      transition: "all 0.18s",
-                      width: "100%",
-                      lineHeight: 1.3,
-                      wordBreak: "break-all",
-                    }}
-                  >
-                    {item.order != null && <span style={{ display: "block", fontSize: 8, opacity: 0.6, marginBottom: 1 }}>#{item.order}</span>}
-                    {item.label}
-                  </button>
-                );
-              })}
-            </div>
+            <div style={{ fontSize: 10, fontWeight: 800, color: "#059669", letterSpacing: "0.04em" }}>✅ {scanFound.length} MÃ</div>
+            <div style={{ fontSize: 9, color: "#9ca3af", marginTop: 1 }}>Bấm để xem</div>
           </div>
-        );
-      })()}
+          <div style={{ overflow: "auto", padding: "6px 5px", display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
+            {scanFound.map((h, i) => {
+              const isSelected = focusedScan?.code === h.code;
+              return (
+                <button
+                  key={i}
+                  onClick={() => scrollToCode(h)}
+                  title={`Cột ${h.col} · Hàng ${h.row + 1}`}
+                  style={{
+                    border: "1.5px solid",
+                    borderColor: isSelected ? "#059669" : "#fde68a",
+                    borderRadius: 8,
+                    padding: "5px 3px",
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    fontFamily: "monospace",
+                    cursor: "pointer",
+                    background: isSelected ? "#059669" : "#fef3c7",
+                    color: isSelected ? "white" : "#92400e",
+                    textAlign: "center",
+                    transition: "all 0.18s",
+                    width: "100%",
+                    lineHeight: 1.3,
+                    wordBreak: "break-all",
+                  }}
+                >
+                  {h.code}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div style={{ textAlign: "center", padding: "20px 16px", borderTop: "1px solid #e5e7eb", background: "white", fontSize: 12, color: "#9ca3af" }}>
         Gingko Brand High-Grade Embroidery Thread · 100% Polyester
