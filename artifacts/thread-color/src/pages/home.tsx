@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useLocation } from "wouter";
 
 /* ─── DATA ─────────────────────────────────────────────────────── */
 const CHART_CONFIG = {
@@ -133,6 +134,7 @@ function ChartImage({ chart, pins, focusedCode }: { chart: typeof CHARTS[0]; pin
 
 /* ─── MAIN ──────────────────────────────────────────────────────── */
 export default function Home() {
+  const [, navigate] = useLocation();
   const [mode, setMode] = useState<Mode>("single");
   const [q1, setQ1] = useState("");
   const [q2, setQ2] = useState("");
@@ -203,15 +205,25 @@ export default function Home() {
     setQ1(""); setQ2(""); setScanText(""); setFocusedScan(null);
   }, []);
 
-  /* pill button style */
-  const pill = (active: boolean, color = "#059669") => ({
-    padding: "5px 11px", borderRadius: 20, border: "none", cursor: "pointer",
-    fontSize: 11.5, fontWeight: 700, letterSpacing: "0.01em",
-    background: active ? color : "#f1f5f9",
-    color: active ? "white" : "#64748b",
-    transition: "all 0.18s",
+  /* main tab style */
+  const mainTab = (active: boolean, color: string) => ({
+    flex: 1, padding: "9px 10px", border: "none",
+    borderBottom: active ? `2.5px solid ${color}` : "2.5px solid transparent",
+    marginBottom: -1, cursor: "pointer",
+    fontSize: 13, fontWeight: active ? 700 : 500,
+    color: active ? color : "#9ca3af",
+    background: "transparent", transition: "all 0.15s",
     whiteSpace: "nowrap" as const,
-    flexShrink: 0,
+  });
+
+  /* sub-mode pill style */
+  const subPill = (active: boolean, color = "#059669") => ({
+    padding: "5px 14px", borderRadius: 20, cursor: "pointer",
+    fontSize: 12, fontWeight: 600,
+    border: `1.5px solid ${active ? color : "#e5e7eb"}`,
+    background: active ? color : "white",
+    color: active ? "white" : "#6b7280",
+    transition: "all 0.15s", whiteSpace: "nowrap" as const,
   });
 
   const inputBox = (focused: boolean, accent = "#f59e0b") => ({
@@ -264,18 +276,28 @@ export default function Home() {
           transition: "border-radius 0.2s, box-shadow 0.2s",
         }}>
 
-          {/* Mode switcher — hidden when collapsed */}
+          {/* ── NAV: tier-1 main sections ── */}
           {!collapsed && (
-            <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap", alignItems: "center", justifyContent: "center" }}>
-              <button style={pill(mode === "single")} onClick={() => switchMode("single")}>🔍 Tìm mã</button>
-              <button style={pill(mode === "compare", "#0ea5e9")} onClick={() => switchMode("compare")}>↔️ So sánh 2 mã</button>
-              <button style={pill(mode === "scan", "#7c3aed")} onClick={() => switchMode("scan")}>📋 Quét DS</button>
-              <a href={`${import.meta.env.BASE_URL}fabrics`} style={{ textDecoration: "none" }}>
-                <button style={pill(false, "#d97706")}>🎨 Danh mục vải</button>
-              </a>
-              <a href={`${import.meta.env.BASE_URL}viewer`} style={{ textDecoration: "none" }}>
-                <button style={pill(false, "#6d28d9")}>🧵 File thêu</button>
-              </a>
+            <div style={{ marginBottom: 0 }}>
+              {/* Tier 1 — three main tabs */}
+              <div style={{ display: "flex", borderBottom: "1px solid #e5e7eb", marginBottom: 14 }}>
+                <button onClick={() => navigate("/fabrics")} style={mainTab(false, "#d97706")}>
+                  🎨 Danh mục vải
+                </button>
+                <button style={mainTab(true, "#059669")}>
+                  🧵 Danh mục màu chỉ
+                </button>
+                <button onClick={() => navigate("/viewer")} style={mainTab(false, "#6d28d9")}>
+                  📁 File thêu
+                </button>
+              </div>
+
+              {/* Tier 2 — sub-modes (only for Màu chỉ tab) */}
+              <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
+                <button style={subPill(mode === "single")} onClick={() => switchMode("single")}>🔍 Tìm mã</button>
+                <button style={subPill(mode === "compare", "#0ea5e9")} onClick={() => switchMode("compare")}>↔️ So sánh 2 mã</button>
+                <button style={subPill(mode === "scan", "#7c3aed")} onClick={() => switchMode("scan")}>📋 Quét danh sách</button>
+              </div>
             </div>
           )}
 
