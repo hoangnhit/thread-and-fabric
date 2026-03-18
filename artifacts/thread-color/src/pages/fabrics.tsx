@@ -793,6 +793,30 @@ export default function Fabrics() {
         </div>
       )}
 
+      {/* ── FLOATING CONTACT ── */}
+      <div style={{ position: "fixed", bottom: 20, left: 16, zIndex: 100, display: "flex", flexDirection: "column", gap: 10 }}>
+        <a href="https://zalo.me/0969896403" target="_blank" rel="noopener noreferrer"
+          title="Liên hệ Zalo"
+          style={{ width: 48, height: 48, borderRadius: "50%", background: "#0068ff", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 14px rgba(0,104,255,0.45)", textDecoration: "none", transition: "transform 0.18s, box-shadow 0.18s" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "scale(1.12)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 6px 20px rgba(0,104,255,0.6)"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = "scale(1)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 14px rgba(0,104,255,0.45)"; }}
+        >
+          <svg width="28" height="28" viewBox="0 0 48 48" fill="none">
+            <text x="50%" y="54%" dominantBaseline="middle" textAnchor="middle" fontFamily="Arial Black, Arial" fontWeight="900" fontSize="26" fill="white">Z</text>
+          </svg>
+        </a>
+        <a href="https://wa.me/84969896403" target="_blank" rel="noopener noreferrer"
+          title="Liên hệ WhatsApp"
+          style={{ width: 48, height: 48, borderRadius: "50%", background: "#25d366", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 14px rgba(37,211,102,0.45)", textDecoration: "none", transition: "transform 0.18s, box-shadow 0.18s" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "scale(1.12)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 6px 20px rgba(37,211,102,0.6)"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = "scale(1)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 14px rgba(37,211,102,0.45)"; }}
+        >
+          <svg width="26" height="26" viewBox="0 0 32 32" fill="white">
+            <path d="M16 2C8.268 2 2 8.268 2 16c0 2.455.663 4.756 1.816 6.733L2 30l7.463-1.787A13.94 13.94 0 0016 30c7.732 0 14-6.268 14-14S23.732 2 16 2zm0 25.5a11.45 11.45 0 01-5.845-1.604l-.42-.248-4.43 1.061 1.094-4.314-.273-.443A11.46 11.46 0 014.5 16C4.5 9.649 9.649 4.5 16 4.5S27.5 9.649 27.5 16 22.351 27.5 16 27.5zm6.29-8.61c-.345-.172-2.04-1.006-2.356-1.12-.316-.115-.547-.172-.777.172s-.892 1.12-1.093 1.35c-.2.23-.4.258-.746.086-.345-.172-1.457-.537-2.775-1.713-1.026-.915-1.718-2.044-1.92-2.389-.2-.345-.021-.531.151-.703.155-.154.345-.402.517-.603.172-.2.23-.345.345-.575.115-.23.058-.431-.029-.603-.086-.172-.777-1.872-1.064-2.561-.28-.672-.564-.58-.777-.592l-.661-.011c-.23 0-.603.086-.919.431-.316.345-1.207 1.178-1.207 2.872s1.236 3.33 1.408 3.56c.172.23 2.432 3.71 5.893 5.202.824.355 1.467.568 1.969.728.827.263 1.58.226 2.174.137.663-.1 2.04-.834 2.327-1.638.287-.804.287-1.493.2-1.638-.086-.144-.316-.23-.661-.402z"/>
+          </svg>
+        </a>
+      </div>
+
       {/* ── FOOTER ── */}
       <div style={{ textAlign: "center", padding: "20px 16px 28px", color: "#94a3b8", fontSize: 11, letterSpacing: "0.08em", fontWeight: 500 }}>
         DESIGNED by NGUYEN HUU HOANG
