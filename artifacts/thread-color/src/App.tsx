@@ -47,10 +47,12 @@ function ThemeToggle() {
       title={isDark ? "Chuyển sang chế độ sáng" : "Chuyển sang chế độ tối"}
       style={{
         position: "fixed", top: 14, right: 14, zIndex: 9999,
-        background: "none", border: "none", cursor: "pointer",
-        padding: 0, lineHeight: 0,
-        filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.25))",
-        transition: "transform 0.2s, filter 0.2s",
+        background: "rgba(120,120,120,0.28)", backdropFilter: "blur(6px)",
+        border: "1px solid rgba(255,255,255,0.18)",
+        borderRadius: "50%", cursor: "pointer",
+        padding: 5, lineHeight: 0,
+        boxShadow: "0 2px 10px rgba(0,0,0,0.22)",
+        transition: "transform 0.2s, background 0.2s",
       }}
       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "scale(1.12)"; }}
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = "scale(1)"; }}
