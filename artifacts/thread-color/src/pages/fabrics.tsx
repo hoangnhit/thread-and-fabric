@@ -64,6 +64,9 @@ export default function Fabrics() {
   const [editId, setEditId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const [zoomItem, setZoomItem] = useState<FabricItem | null>(null);
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareIds, setCompareIds] = useState<number[]>([]);
+  const [showCompare, setShowCompare] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
 
@@ -188,6 +191,22 @@ export default function Fabrics() {
     setEditName("");
   };
 
+  const toggleCompare = (id: number) => {
+    setCompareIds(prev => {
+      if (prev.includes(id)) return prev.filter(x => x !== id);
+      if (prev.length >= 2) return [prev[1], id];
+      return [...prev, id];
+    });
+  };
+
+  const exitCompareMode = () => {
+    setCompareMode(false);
+    setCompareIds([]);
+    setShowCompare(false);
+  };
+
+  const compareItems = fabrics.filter(f => compareIds.includes(f.id));
+
   const filtered = search.trim()
     ? fabrics.filter(f => f.name.toLowerCase().includes(search.toLowerCase()))
     : fabrics;
@@ -244,6 +263,17 @@ export default function Fabrics() {
                 }}
               />
             </div>
+            <button
+              onClick={() => { setCompareMode(m => !m); setCompareIds([]); setShowCompare(false); }}
+              style={{
+                background: compareMode ? "#0ea5e9" : "#e0f2fe", color: compareMode ? "white" : "#0369a1",
+                border: "none", borderRadius: 10, padding: "8px 12px", fontSize: 12,
+                fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
+                transition: "all 0.18s",
+              }}
+            >
+              ↔️ So sánh
+            </button>
             <button
               onClick={handleAddPresets}
               title="Thêm 20 màu cơ bản (White, Black, Blue, Red...)"
@@ -435,7 +465,7 @@ export default function Fabrics() {
       </div>
 
       {/* Fabric grid */}
-      <main style={{ maxWidth: 640, margin: "20px auto 40px", padding: "0 16px" }}>
+      <main style={{ maxWidth: 640, margin: "20px auto 0", padding: `0 16px ${compareMode ? "100px" : "40px"}` }}>
         {loading && (
           <div style={{ textAlign: "center", padding: "48px 20px", color: "#9ca3af" }}>
             <div style={{ fontSize: 32, marginBottom: 10, animation: "spin 1s linear infinite" }}>⏳</div>
@@ -455,24 +485,55 @@ export default function Fabrics() {
         )}
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
-          {filtered.map(f => (
+          {filtered.map(f => {
+            const isSelected = compareIds.includes(f.id);
+            const selIdx = compareIds.indexOf(f.id);
+            return (
             <div key={f.id} style={{
               background: "white", borderRadius: 16,
-              boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+              boxShadow: isSelected
+                ? `0 0 0 3px ${selIdx === 0 ? "#0ea5e9" : "#f59e0b"}, 0 2px 12px rgba(0,0,0,0.08)`
+                : "0 2px 12px rgba(0,0,0,0.08)",
               overflow: "hidden", position: "relative",
+              transition: "box-shadow 0.15s",
             }}>
-              {/* Swatch image — tap to zoom */}
+              {/* Swatch image */}
               <div
-                onClick={() => setZoomItem(f)}
-                style={{ width: "100%", aspectRatio: "4/3", overflow: "hidden", background: "#f1f5f9", cursor: "zoom-in", position: "relative" }}
+                onClick={() => compareMode ? toggleCompare(f.id) : setZoomItem(f)}
+                style={{ width: "100%", aspectRatio: "4/3", overflow: "hidden", background: "#f1f5f9", cursor: compareMode ? "pointer" : "zoom-in", position: "relative" }}
               >
                 <img src={f.image} alt={f.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                <div style={{
-                  position: "absolute", bottom: 6, right: 6,
-                  background: "rgba(0,0,0,0.35)", borderRadius: 6,
-                  padding: "2px 6px", fontSize: 11, color: "white", fontWeight: 600,
-                  backdropFilter: "blur(4px)",
-                }}>🔍</div>
+
+                {/* Normal mode: zoom hint */}
+                {!compareMode && (
+                  <div style={{
+                    position: "absolute", bottom: 6, right: 6,
+                    background: "rgba(0,0,0,0.35)", borderRadius: 6,
+                    padding: "2px 6px", fontSize: 11, color: "white", fontWeight: 600,
+                    backdropFilter: "blur(4px)",
+                  }}>🔍</div>
+                )}
+
+                {/* Compare mode: selection overlay */}
+                {compareMode && (
+                  <div style={{
+                    position: "absolute", inset: 0,
+                    background: isSelected ? "rgba(0,0,0,0.18)" : "transparent",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    transition: "background 0.15s",
+                  }}>
+                    <div style={{
+                      width: 32, height: 32, borderRadius: "50%",
+                      border: `3px solid ${isSelected ? (selIdx === 0 ? "#0ea5e9" : "#f59e0b") : "rgba(255,255,255,0.8)"}`,
+                      background: isSelected ? (selIdx === 0 ? "#0ea5e9" : "#f59e0b") : "rgba(255,255,255,0.4)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 16, color: "white", fontWeight: 900,
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+                    }}>
+                      {isSelected ? (selIdx === 0 ? "1" : "2") : ""}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Name */}
@@ -509,7 +570,8 @@ export default function Fabrics() {
                 )}
               </div>
             </div>
-          ))}
+          );
+          })}
         </div>
       </main>
 
@@ -574,6 +636,156 @@ export default function Fabrics() {
                 fontSize: 13, fontWeight: 700, cursor: "pointer",
               }}
             >🗑️ Xoá</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── FLOATING COMPARE BAR ── */}
+      {compareMode && (
+        <div style={{
+          position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 500,
+          background: "white", borderTop: "2px solid #e0f2fe",
+          padding: "12px 20px", display: "flex", alignItems: "center",
+          gap: 10, boxShadow: "0 -4px 24px rgba(0,0,0,0.1)",
+        }}>
+          {/* Slot indicators */}
+          <div style={{ display: "flex", gap: 8, flex: 1, alignItems: "center" }}>
+            {[0, 1].map(idx => {
+              const item = compareItems[idx];
+              return (
+                <div key={idx} style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  background: item ? (idx === 0 ? "#e0f2fe" : "#fef3c7") : "#f3f4f6",
+                  borderRadius: 10, padding: "6px 10px", minWidth: 90,
+                  border: `2px solid ${item ? (idx === 0 ? "#0ea5e9" : "#f59e0b") : "#e5e7eb"}`,
+                }}>
+                  {item ? (
+                    <>
+                      <div style={{
+                        width: 28, height: 28, borderRadius: 6, overflow: "hidden", flexShrink: 0,
+                        boxShadow: "0 1px 4px rgba(0,0,0,0.15)",
+                      }}>
+                        <img src={item.image} alt={item.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      </div>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 80 }}>
+                        {item.name}
+                      </span>
+                      <button onClick={() => toggleCompare(item.id)} style={{ marginLeft: "auto", border: "none", background: "none", cursor: "pointer", fontSize: 14, color: "#6b7280", padding: 0, lineHeight: 1 }}>✕</button>
+                    </>
+                  ) : (
+                    <span style={{ fontSize: 12, color: "#9ca3af", fontWeight: 600 }}>
+                      {idx + 1}. Chọn vải...
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={() => setShowCompare(true)}
+            disabled={compareIds.length < 2}
+            style={{
+              padding: "10px 18px", border: "none", borderRadius: 10,
+              background: compareIds.length === 2 ? "#0ea5e9" : "#e5e7eb",
+              color: compareIds.length === 2 ? "white" : "#9ca3af",
+              fontWeight: 800, fontSize: 13, cursor: compareIds.length === 2 ? "pointer" : "not-allowed",
+              transition: "all 0.18s", whiteSpace: "nowrap",
+            }}
+          >↔️ So sánh ngay</button>
+          <button
+            onClick={exitCompareMode}
+            style={{
+              padding: "10px 12px", border: "1.5px solid #e5e7eb", borderRadius: 10,
+              background: "white", color: "#6b7280", fontWeight: 700, fontSize: 12,
+              cursor: "pointer",
+            }}
+          >Thoát</button>
+        </div>
+      )}
+
+      {/* ── COMPARE MODAL ── */}
+      {showCompare && compareItems.length === 2 && (
+        <div
+          onClick={() => setShowCompare(false)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 1000,
+            background: "rgba(0,0,0,0.85)",
+            display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: "white", borderRadius: 20, overflow: "hidden",
+              width: "100%", maxWidth: 500,
+              boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
+            }}
+          >
+            {/* Header */}
+            <div style={{
+              background: "linear-gradient(135deg, #0ea5e9, #f59e0b)",
+              padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between",
+            }}>
+              <span style={{ color: "white", fontWeight: 800, fontSize: 15 }}>↔️ So sánh màu vải</span>
+              <button onClick={() => setShowCompare(false)} style={{ border: "none", background: "rgba(255,255,255,0.2)", borderRadius: 6, padding: "4px 10px", color: "white", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>✕</button>
+            </div>
+
+            {/* Side-by-side swatches */}
+            <div style={{ display: "flex", gap: 0, position: "relative" }}>
+              {compareItems.map((item, idx) => (
+                <div key={item.id} style={{ flex: 1, position: "relative" }}>
+                  <div style={{ aspectRatio: "1/1", overflow: "hidden" }}>
+                    <img src={item.image} alt={item.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                  </div>
+                  <div style={{
+                    padding: "14px 16px", borderTop: `3px solid ${idx === 0 ? "#0ea5e9" : "#f59e0b"}`,
+                    background: idx === 0 ? "#f0f9ff" : "#fffbeb",
+                  }}>
+                    <div style={{
+                      display: "inline-block", fontSize: 10, fontWeight: 800, letterSpacing: "0.05em",
+                      background: idx === 0 ? "#0ea5e9" : "#f59e0b", color: "white",
+                      borderRadius: 4, padding: "2px 7px", marginBottom: 6,
+                    }}>{idx === 0 ? "VẢI 1" : "VẢI 2"}</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: "#1e293b", lineHeight: 1.4 }}>
+                      {item.name}
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* VS divider */}
+              <div style={{
+                position: "absolute", left: "50%", top: "calc(50% - 50px)",
+                transform: "translate(-50%, -50%)",
+                width: 36, height: 36, borderRadius: "50%",
+                background: "white", border: "3px solid #e5e7eb",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 11, fontWeight: 900, color: "#374151",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.15)", zIndex: 5,
+                pointerEvents: "none",
+              }}>VS</div>
+            </div>
+
+            {/* Swap button */}
+            <div style={{ padding: "14px 20px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 10, justifyContent: "center" }}>
+              <button
+                onClick={() => setCompareIds(prev => [prev[1], prev[0]])}
+                style={{
+                  padding: "8px 18px", border: "1.5px solid #e5e7eb", borderRadius: 10,
+                  background: "white", color: "#374151", fontWeight: 700, fontSize: 13, cursor: "pointer",
+                }}
+              >🔄 Đổi vị trí</button>
+              <button
+                onClick={() => { setShowCompare(false); setCompareIds([]); }}
+                style={{
+                  padding: "8px 18px", border: "none", borderRadius: 10,
+                  background: "#f1f5f9", color: "#374151", fontWeight: 700, fontSize: 13, cursor: "pointer",
+                }}
+              >Chọn lại</button>
+            </div>
           </div>
         </div>
       )}
