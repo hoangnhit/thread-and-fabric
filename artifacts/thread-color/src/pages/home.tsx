@@ -72,7 +72,7 @@ function ChartImage({ chart, hit }: { chart: typeof CHARTS[0]; hit: Hit | null }
   const { rotateDeg } = CHART_CONFIG[chart.id];
 
   return (
-    <div style={{ overflow: "hidden", position: "relative" }}>
+    <div style={{ overflow: "hidden", position: "relative", borderRadius: 12 }}>
       <div
         ref={wrapRef}
         style={{
@@ -90,7 +90,6 @@ function ChartImage({ chart, hit }: { chart: typeof CHARTS[0]; hit: Hit | null }
             if (img) setSize({ w: img.offsetWidth, h: img.offsetHeight });
           }}
         />
-
         {size.w > 0 && activeHit && chart.columns.map((col) =>
           col.name === activeHit.col
             ? col.codes.map((_, i) => {
@@ -101,18 +100,18 @@ function ChartImage({ chart, hit }: { chart: typeof CHARTS[0]; hit: Hit | null }
                 const bw = (cfg.boxW / cfg.imageW) * size.w;
                 const bh = (cfg.rowH * 0.85 / cfg.imageH) * size.h;
                 return (
-                  <div
-                    key={`hit-${col.name}-${i}`}
+                  <div key={`hit-${col.name}-${i}`}
                     style={{
                       position: "absolute",
                       left: cx - bw / 2,
                       top: cy - bh / 2,
                       width: bw,
                       height: bh,
-                      borderRadius: 4,
-                      backgroundColor: "rgba(255,220,0,0.5)",
-                      boxShadow: "0 0 0 3px #f59e0b, 0 0 12px rgba(245,158,11,0.6)",
+                      borderRadius: 6,
+                      backgroundColor: "rgba(255, 230, 0, 0.45)",
+                      boxShadow: "0 0 0 2.5px #f59e0b, 0 0 16px rgba(245,158,11,0.7)",
                       pointerEvents: "none",
+                      animation: "pulse-ring 1.2s ease-in-out infinite",
                     }}
                   />
                 );
@@ -126,67 +125,172 @@ function ChartImage({ chart, hit }: { chart: typeof CHARTS[0]; hit: Hit | null }
 
 export default function Home() {
   const [query, setQuery] = useState("");
+  const [focused, setFocused] = useState(false);
   const hitRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const hit = findCode(query);
 
   useEffect(() => {
     if (hit) {
-      setTimeout(() => hitRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 150);
+      setTimeout(() => hitRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 200);
     }
   }, [hit?.chartId, hit?.col, hit?.row]);
 
+  const handleClear = () => {
+    setQuery("");
+    inputRef.current?.focus();
+  };
+
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#f3f4f6", display: "flex", flexDirection: "column" }}>
-      <header style={{
-        position: "sticky", top: 0, zIndex: 20,
-        backgroundColor: "white", borderBottom: "1px solid #e5e7eb",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+    <div style={{ minHeight: "100vh", backgroundColor: "#f0fdf4", fontFamily: "'Segoe UI', system-ui, sans-serif" }}>
+      {/* Header */}
+      <div style={{
+        background: "linear-gradient(135deg, #14532d 0%, #16a34a 100%)",
+        padding: "20px 16px 28px",
+        textAlign: "center",
+        position: "relative",
+        overflow: "hidden",
       }}>
-        <div style={{ maxWidth: 672, margin: "0 auto", padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+        {/* decorative circles */}
+        <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
+        <div style={{ position: "absolute", bottom: -20, left: -20, width: 90, height: 90, borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
+
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 6 }}>
           <div style={{
-            width: 32, height: 32, borderRadius: "50%", backgroundColor: "#15803d",
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+            width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.2)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            border: "2px solid rgba(255,255,255,0.4)",
           }}>
-            <span style={{ color: "white", fontSize: 12, fontWeight: "bold" }}>G</span>
+            <span style={{ fontSize: 18 }}>🧵</span>
           </div>
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Nhập mã màu (vd: G622, 5860...)"
-            autoFocus
-            style={{
-              flex: 1, padding: "8px 12px", fontSize: 14,
-              border: "1px solid #d1d5db", borderRadius: 8, outline: "none",
-            }}
-            onFocus={(e) => { e.target.style.borderColor = "#16a34a"; e.target.style.boxShadow = "0 0 0 3px rgba(22,163,74,0.1)"; }}
-            onBlur={(e) => { e.target.style.borderColor = "#d1d5db"; e.target.style.boxShadow = "none"; }}
-          />
-          {hit && (
-            <span style={{ fontSize: 14, fontWeight: 600, color: "#15803d", whiteSpace: "nowrap" }}>
-              Cột {hit.col} · Hàng {hit.row + 1}
-            </span>
-          )}
-          {query && !hit && (
-            <span style={{ fontSize: 14, color: "#ef4444", whiteSpace: "nowrap" }}>Không tìm thấy</span>
+          <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "white", letterSpacing: "0.01em" }}>
+            Tra Cứu Màu Chỉ Gingko
+          </h1>
+        </div>
+        <p style={{ margin: 0, fontSize: 12, color: "rgba(255,255,255,0.75)" }}>
+          100% Polyester · High-Grade Embroidery Thread
+        </p>
+      </div>
+
+      {/* Sticky search bar */}
+      <div style={{
+        position: "sticky", top: 0, zIndex: 20,
+        background: "rgba(240,253,244,0.95)",
+        backdropFilter: "blur(10px)",
+        borderBottom: "1px solid #bbf7d0",
+        padding: "12px 16px",
+      }}>
+        <div style={{ maxWidth: 640, margin: "0 auto" }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10,
+            background: "white",
+            border: `2px solid ${focused ? "#16a34a" : "#d1fae5"}`,
+            borderRadius: 14,
+            padding: "10px 14px",
+            boxShadow: focused ? "0 0 0 3px rgba(22,163,74,0.15)" : "0 2px 8px rgba(0,0,0,0.06)",
+            transition: "all 0.2s ease",
+          }}>
+            <span style={{ fontSize: 18, flexShrink: 0 }}>🔍</span>
+            <input
+              ref={inputRef}
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              placeholder="Nhập mã màu: G622, 5860, 9030..."
+              autoFocus
+              style={{
+                flex: 1, border: "none", outline: "none",
+                fontSize: 16, color: "#1a1a1a", background: "transparent",
+                fontWeight: 500,
+              }}
+            />
+            {query && (
+              <button onClick={handleClear} style={{
+                border: "none", background: "#f3f4f6", color: "#6b7280",
+                borderRadius: "50%", width: 24, height: 24, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 14, flexShrink: 0, padding: 0,
+              }}>✕</button>
+            )}
+          </div>
+
+          {/* Result badge */}
+          {query && (
+            <div style={{ marginTop: 10, display: "flex", justifyContent: "center" }}>
+              {hit ? (
+                <div style={{
+                  display: "inline-flex", alignItems: "center", gap: 8,
+                  background: "linear-gradient(135deg, #dcfce7, #bbf7d0)",
+                  border: "1px solid #86efac",
+                  borderRadius: 20, padding: "6px 16px",
+                  fontSize: 13, fontWeight: 600, color: "#15803d",
+                }}>
+                  <span style={{ fontSize: 16 }}>✅</span>
+                  Tìm thấy <strong style={{ fontSize: 15 }}>{hit.code}</strong>
+                  &nbsp;·&nbsp; Cột <strong>{hit.col}</strong> · Hàng <strong>{hit.row + 1}</strong>
+                </div>
+              ) : (
+                <div style={{
+                  display: "inline-flex", alignItems: "center", gap: 8,
+                  background: "#fef2f2", border: "1px solid #fecaca",
+                  borderRadius: 20, padding: "6px 16px",
+                  fontSize: 13, fontWeight: 500, color: "#dc2626",
+                }}>
+                  <span style={{ fontSize: 16 }}>❌</span>
+                  Không tìm thấy mã &ldquo;{query}&rdquo;
+                </div>
+              )}
+            </div>
           )}
         </div>
-      </header>
+      </div>
 
-      <main style={{ flex: 1, maxWidth: 672, margin: "0 auto", width: "100%", padding: "16px 8px", display: "flex", flexDirection: "column", gap: 24 }}>
+      {/* Charts */}
+      <main style={{ maxWidth: 680, margin: "0 auto", padding: "20px 12px 32px" }}>
         {CHARTS.map((chart) => {
           const isHitChart = hit?.chartId === chart.id;
           return (
-            <div key={chart.id} ref={isHitChart ? hitRef : undefined}>
-              <p style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4, paddingLeft: 4 }}>
-                {chart.label}
+            <div key={chart.id} ref={isHitChart ? hitRef : undefined} style={{ marginBottom: 24 }}>
+              {/* Section header */}
+              <div style={{
+                display: "flex", alignItems: "center", gap: 10, marginBottom: 8,
+              }}>
+                <div style={{
+                  width: 4, height: 20, borderRadius: 2,
+                  background: isHitChart ? "#16a34a" : "#86efac",
+                  transition: "background 0.3s",
+                }} />
+                <span style={{
+                  fontSize: 13, fontWeight: 700, color: isHitChart ? "#15803d" : "#4b5563",
+                  textTransform: "uppercase", letterSpacing: "0.08em",
+                  transition: "color 0.3s",
+                }}>
+                  {chart.label}
+                </span>
                 {isHitChart && (
-                  <span style={{ marginLeft: 8, color: "#d97706", textTransform: "none", letterSpacing: 0, fontWeight: "bold" }}>
-                    ↓ Mã {hit!.code}
+                  <span style={{
+                    display: "inline-flex", alignItems: "center", gap: 4,
+                    background: "#fef08a", border: "1px solid #fde047",
+                    borderRadius: 10, padding: "2px 10px",
+                    fontSize: 12, fontWeight: 600, color: "#92400e",
+                  }}>
+                    📍 Mã {hit!.code}
                   </span>
                 )}
-              </p>
-              <div style={{ borderRadius: 12, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.15)", border: "1px solid #e5e7eb" }}>
+              </div>
+
+              {/* Image card */}
+              <div style={{
+                borderRadius: 16, overflow: "hidden",
+                boxShadow: isHitChart
+                  ? "0 0 0 2px #16a34a, 0 8px 24px rgba(22,163,74,0.2)"
+                  : "0 4px 16px rgba(0,0,0,0.1)",
+                border: `2px solid ${isHitChart ? "#16a34a" : "transparent"}`,
+                transition: "all 0.3s ease",
+                background: "white",
+              }}>
                 <ChartImage chart={chart} hit={hit} />
               </div>
             </div>
@@ -194,9 +298,21 @@ export default function Home() {
         })}
       </main>
 
-      <footer style={{ textAlign: "center", fontSize: 12, color: "#9ca3af", padding: "12px 0" }}>
-        Gingko Brand — 100% Polyester
-      </footer>
+      {/* Footer */}
+      <div style={{
+        textAlign: "center", padding: "16px", borderTop: "1px solid #dcfce7",
+        background: "white", fontSize: 12, color: "#9ca3af",
+      }}>
+        Gingko Brand High-Grade Embroidery Thread · 100% Polyester
+      </div>
+
+      <style>{`
+        @keyframes pulse-ring {
+          0%, 100% { box-shadow: 0 0 0 2.5px #f59e0b, 0 0 12px rgba(245,158,11,0.6); }
+          50% { box-shadow: 0 0 0 4px #f59e0b, 0 0 24px rgba(245,158,11,0.9); }
+        }
+        input[type="search"]::-webkit-search-cancel-button { display: none; }
+      `}</style>
     </div>
   );
 }
