@@ -10,135 +10,293 @@ interface ParsedDesign {
   palette: string[];
   width: number; height: number;
   stitchCount: number;
-  format: "DST" | "PES";
+  format: "DST" | "PES" | "PEC" | "JEF" | "EXP";
   label: string;
 }
 
-/* ─── PEC COLOR TABLE (Brother thread colors) ───────────────────── */
+/* ─── PEC COLOR TABLE  (exact RGB from leomurca/embroidery-viewer) ── */
 const PEC_PALETTE: string[] = [
-  "#1A0A94","#0000FF","#C8D200","#B5AD00","#2D7027","#E3E3E3","#C0C0C0",
-  "#1A92D3","#6FC3E3","#F0C3E3","#E3C3AB","#6B8267","#5E9B8A","#8AC89B",
-  "#6BCDB2","#37A923","#D9C300","#FFFF00","#FFC000","#FF8000","#FF0000",
-  "#E31984","#CC0088","#AA00AA","#6600CC","#2200BB","#0066CC","#0099DD",
-  "#00AAAA","#009966","#339900","#66BB00","#CCCC00","#FFCC00","#FF9900",
-  "#FF6600","#CC0000","#CC0033","#990066","#660099","#0000AA","#0033CC",
-  "#0066FF","#00AACC","#00CC99","#33CC33","#99CC00","#CCCC33","#FFFF33",
-  "#FFCC33","#FF9933","#FF6633","#FF3333","#CC3366","#993399","#663399",
-  "#336699","#0099CC","#33CCCC","#66CC99","#99CC66","#CCCC66","#FFCC66",
-  "#FF9966","#FF6666","#FF9999","#FFCCCC","#CCFFCC","#99FFCC","#66FFFF",
-  "#FFFFFF","#000000","#808080","#804000","#FF69B4","#00FF00","#FFD700",
+  "#000000","#0E1F7C","#0A55A3","#008777","#4B6BAF","#ED171F","#D15C00",
+  "#913697","#E49ACB","#915FAC","#9ED67D","#E8A900","#FEBA35","#FFFF00",
+  "#70BC1F","#BA9800","#A8A8A8","#7D6F00","#FFFFB3","#4F5556","#000000",
+  "#0B3D91","#770176","#293133","#2A1301","#F64A8A","#B27624","#FCBBC5",
+  "#FE370F","#F0F0F0","#6A1C8A","#A8DDC4","#2584BB","#FEB343","#FFF36B",
+  "#D0A660","#D15400","#66BA49","#134A46","#878787","#D8CCC6","#435607",
+  "#FDD9DE","#F993BC","#003822","#B2AFD4","#686AB0","#EFE3B9","#F73866",
+  "#B54B64","#132B1A","#C70156","#FE9E32","#A8DEEB","#00673E","#4E2990",
+  "#2F7E20","#FFCCCC","#FFD911","#095BA6","#F0F970","#E3F35B","#FF9900",
+  "#FFF08D","#FFC8C8",
 ];
 
-/* ─── DST PARSER ─────────────────────────────────────────────────── */
-function parseDST(buffer: ArrayBuffer): ParsedDesign {
-  const data = new Uint8Array(buffer);
-  const stitches: Stitch[] = [];
-  const headerBytes = data.slice(0, 512);
-  let label = "DST Design";
-  for (let i = 0; i < 509; i++) {
-    if (headerBytes[i] === 0x4C && headerBytes[i+1] === 0x41 && headerBytes[i+2] === 0x3A) {
-      const end = Array.from(headerBytes.slice(i+3)).findIndex(c => c === 0x0D || c === 0x0A || c === 0x00);
-      label = String.fromCharCode(...headerBytes.slice(i+3, i+3+(end>0?end:16))).trim() || label;
-      break;
+/* ─── FILE-VIEW HELPER (sequential seek/read over ArrayBuffer) ───── */
+class EmbFile {
+  private dv: DataView;
+  private p = 0;
+  byteLength: number;
+  constructor(buf: ArrayBuffer) { this.dv = new DataView(buf); this.byteLength = buf.byteLength; }
+  tell() { return this.p; }
+  seek(pos: number) { this.p = pos; }
+  getUint8(): number { return this.dv.getUint8(this.p++); }
+  getInt8(): number { return this.dv.getInt8(this.p++); }
+  getInt32(pos: number, le = true): number { const v = this.dv.getInt32(pos, le); this.p = pos + 4; return v; }
+  getUint32(pos: number, le = true): number { const v = this.dv.getUint32(pos, le); this.p = pos + 4; return v; }
+  getString(pos: number, maxLen: number): string {
+    let s = "";
+    for (let i = 0; i < maxLen && pos + i < this.byteLength; i++) {
+      const c = this.dv.getUint8(pos + i);
+      if (c === 0 || c === 0xFF || c === 0x0D || c === 0x0A) break;
+      s += String.fromCharCode(c);
     }
+    return s.trim();
   }
+}
+
+/* ─── PEC STITCH COORDINATE DECODE (reference-accurate) ─────────── */
+function pecDecodeXY(file: EmbFile, x: number, y: number): [number, number] {
+  if (x & 0x80) {
+    x = ((x & 0x0f) << 8) + y;
+    if (x & 0x800) x -= 0x1000;
+    y = file.getUint8();
+  } else if (x >= 0x40) {
+    x -= 0x80;
+  }
+  if (y & 0x80) {
+    y = ((y & 0x0f) << 8) + file.getUint8();
+    if (y & 0x800) y -= 0x1000;
+  } else if (y > 0x3f) {
+    y -= 0x80;
+  }
+  return [x, y];
+}
+
+/* shared bounds tracker */
+interface Bounds { minX:number; maxX:number; minY:number; maxY:number; }
+function updateBounds(b: Bounds, x: number, y: number) {
+  if (x < b.minX) b.minX = x; if (x > b.maxX) b.maxX = x;
+  if (y < b.minY) b.minY = y; if (y > b.maxY) b.maxY = y;
+}
+
+/* ─── PEC STITCH LOOP (used by PES, PEC, JEF via pec stitch section) */
+function readPecStitches(
+  file: EmbFile, stitches: Stitch[], palette: string[],
+  colorIndex: { v: number }, bounds: Bounds
+) {
+  let cx = 0, cy = 0;
+  while (file.tell() < file.byteLength - 1) {
+    let x = file.getUint8(), y = file.getUint8();
+    if (x === 0xFF && y === 0x00) { break; }
+    if (x === 0xFE && y === 0xB0) {
+      file.getUint8();
+      stitches.push({ x: cx, y: cy, type: "COLOR_CHANGE", colorIndex: colorIndex.v });
+      colorIndex.v++;
+      continue;
+    }
+    let type: StitchType = "STITCH";
+    if (x & 0x80) {
+      if (x & 0x20) type = "TRIM"; else if (x & 0x10) type = "JUMP";
+    } else if (y & 0x80) {
+      if (y & 0x20) type = "TRIM"; else if (y & 0x10) type = "JUMP";
+    }
+    [x, y] = pecDecodeXY(file, x, y);
+    cx += x; cy += y;
+    stitches.push({ x: cx, y: cy, type, colorIndex: colorIndex.v });
+    if (type === "STITCH") updateBounds(bounds, cx, cy);
+  }
+}
+
+/* ─── DST PARSER (fixed bit assignments per reference) ──────────── */
+function parseDST(buf: ArrayBuffer): ParsedDesign {
+  const file = new EmbFile(buf);
+  const label = file.getString(0, 511).includes("LA:")
+    ? file.getString(file.getString(0, 511).indexOf("LA:") + 3, 16) || "DST Design"
+    : "DST Design";
+  const stitches: Stitch[] = [];
+  const bounds: Bounds = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
   let cx = 0, cy = 0, colorIndex = 0;
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  for (let i = 512; i < data.length - 2; i += 3) {
-    const b0 = data[i], b1 = data[i+1], b2 = data[i+2];
-    if (b0===0x00 && b1===0x00 && b2===0xF3) break;
+  file.seek(512);
+  while (file.tell() < file.byteLength - 2) {
+    const b0 = file.getUint8(), b1 = file.getUint8(), b2 = file.getUint8();
+    if (b2 === 0xF3) break;
     let dx = 0, dy = 0;
-    if (b2&0x80) dy+=1; if (b2&0x40) dy-=1;
-    if (b2&0x20) dy+=9; if (b2&0x10) dy-=9;
-    if (b2&0x08) dx-=9; if (b2&0x04) dx+=9;
-    if (b2&0x02) dx-=1; if (b2&0x01) dx+=1;
-    if (b1&0x80) dy+=3; if (b1&0x40) dy-=3;
-    if (b1&0x20) dy+=27; if (b1&0x10) dy-=27;
-    if (b1&0x08) dx-=27; if (b1&0x04) dx+=27;
-    if (b1&0x02) dx-=3; if (b1&0x01) dx+=3;
-    if (b0&0x04) dx+=81; if (b0&0x08) dx-=81;
-    if (b0&0x10) dy-=81; if (b0&0x20) dy+=81;
-    const isJump = (b0&0x80)!==0, isCStop = (b0&0x40)!==0;
-    cx+=dx; cy+=dy;
-    if (isCStop) { stitches.push({x:cx,y:cy,type:"COLOR_CHANGE",colorIndex}); colorIndex++; }
-    else if (isJump) { stitches.push({x:cx,y:cy,type:"JUMP",colorIndex}); }
-    else {
-      stitches.push({x:cx,y:cy,type:"STITCH",colorIndex});
-      if (cx<minX) minX=cx; if (cx>maxX) maxX=cx;
-      if (cy<minY) minY=cy; if (cy>maxY) maxY=cy;
+    // b0: X±1,±9  Y±1,±9
+    if (b0 & 0x01) dx += 1; if (b0 & 0x02) dx -= 1;
+    if (b0 & 0x04) dx += 9; if (b0 & 0x08) dx -= 9;
+    if (b0 & 0x80) dy += 1; if (b0 & 0x40) dy -= 1;
+    if (b0 & 0x20) dy += 9; if (b0 & 0x10) dy -= 9;
+    // b1: X±3,±27  Y±3,±27
+    if (b1 & 0x01) dx += 3; if (b1 & 0x02) dx -= 3;
+    if (b1 & 0x04) dx += 27; if (b1 & 0x08) dx -= 27;
+    if (b1 & 0x80) dy += 3; if (b1 & 0x40) dy -= 3;
+    if (b1 & 0x20) dy += 27; if (b1 & 0x10) dy -= 27;
+    // b2: X±81  Y±81  command
+    if (b2 & 0x04) dx += 81; if (b2 & 0x08) dx -= 81;
+    if (b2 & 0x20) dy += 81; if (b2 & 0x10) dy -= 81;
+    const isTrim = (b2 & 0x80) !== 0;
+    const isStop = (b2 & 0x40) !== 0;
+    cx += dx; cy -= dy; // invert Y (DST is Y-up)
+    if (isStop) {
+      stitches.push({ x: cx, y: cy, type: "COLOR_CHANGE", colorIndex });
+      colorIndex++;
+    } else if (isTrim) {
+      stitches.push({ x: cx, y: cy, type: "JUMP", colorIndex });
+    } else {
+      stitches.push({ x: cx, y: cy, type: "STITCH", colorIndex });
+      updateBounds(bounds, cx, cy);
     }
   }
   const defaults = ["#7A9E7E","#C8A96E","#5B7FA6","#D4845A","#9B6BB5","#4AABB8","#D4635A","#8B5E3C","#3A6351","#C4A35A"];
-  const palette = Array.from({length:colorIndex+1},(_,i)=>defaults[i%defaults.length]);
-  return {stitches, colorCount:colorIndex+1, palette, width:maxX-minX, height:maxY-minY,
-          stitchCount:stitches.filter(s=>s.type==="STITCH").length, format:"DST", label};
+  const palette = Array.from({ length: colorIndex + 1 }, (_, i) => defaults[i % defaults.length]);
+  return { stitches, colorCount: colorIndex + 1, palette,
+    width: bounds.minX === Infinity ? 0 : bounds.maxX - bounds.minX,
+    height: bounds.minY === Infinity ? 0 : bounds.maxY - bounds.minY,
+    stitchCount: stitches.filter(s => s.type === "STITCH").length, format: "DST", label };
 }
 
-/* ─── PES / PEC PARSER ──────────────────────────────────────────── */
-function signed12(b:number):number { b&=0xfff; return b>0x7ff?-0x1000+b:b; }
-function signed7(b:number):number { return b>63?-128+b:b; }
-
-function parsePES(buffer: ArrayBuffer): ParsedDesign {
-  const data = new Uint8Array(buffer);
-  const view = new DataView(buffer);
-  const sig = String.fromCharCode(data[0],data[1],data[2],data[3]);
-  const isPEC = sig==="#PEC";
-  let pecOffset = isPEC ? 0 : view.getUint32(8,true);
-  const pesVer = isPEC ? "" : String.fromCharCode(data[4],data[5],data[6],data[7]).trim();
-
-  for (let search=pecOffset; search<Math.min(pecOffset+512,data.length-3); search++) {
-    if (data[search]===0x4C && data[search+1]===0x41 && data[search+2]===0x3A) {
-      const lblEnd = search+3+16;
-      const label = String.fromCharCode(...data.slice(search+3,lblEnd)).replace(/[\x00\xff]/g,"").trim() || pesVer || "PES Design";
-      let p = search+3+16+0xF+1+1+0xC;
-      if (p>=data.length) break;
-      const cc = data[p]; p++;
-      const cnt = cc+1;
-      const colorBytes = data.slice(p,p+cnt); p+=cnt;
-      p += 0x1D0-cc;
-      p += 3+0x0B;
-      if (p>=data.length) break;
-      const palette: string[] = [];
-      for (let i=0;i<cnt;i++) palette.push(PEC_PALETTE[colorBytes[i]%PEC_PALETTE.length]);
-      return readPECStitches(data,p,palette,label);
-    }
+/* ─── PES PARSER (pecStart + 532 per reference) ─────────────────── */
+function parsePES(buf: ArrayBuffer): ParsedDesign {
+  const file = new EmbFile(buf);
+  const sig = file.getString(0, 4);
+  const isPEC = sig === "#PEC";
+  if (isPEC) return parsePEC(buf);
+  const pecStart = file.getInt32(8, true);
+  const label = file.getString(pecStart + 3, 16) || "PES Design";
+  file.seek(pecStart + 48);
+  const numColors = file.getUint8() + 1;
+  const palette: string[] = [];
+  for (let i = 0; i < numColors; i++) {
+    palette.push(PEC_PALETTE[file.getUint8() % PEC_PALETTE.length]);
   }
-  return {stitches:[],colorCount:1,palette:["#333"],width:0,height:0,stitchCount:0,format:"PES",label:"Parse error"};
-}
-
-function readPECStitches(data:Uint8Array, startPos:number, palette:string[], label:string): ParsedDesign {
-  const FL=0x80, JC=0x10, TC=0x20;
+  file.seek(pecStart + 532);
   const stitches: Stitch[] = [];
-  let cx=0, cy=0, colorIndex=0, i=startPos;
-  let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
-  while (i<data.length-1) {
-    const v1=data[i], v2=data[i+1];
-    if (v1===0xFF && v2===0x00) break;
-    if (v1===0xFE && v2===0xB0) { i+=3; stitches.push({x:cx,y:cy,type:"COLOR_CHANGE",colorIndex}); colorIndex++; continue; }
-    let x:number, y:number, isJump=false;
-    if (v1&FL) {
-      if (v1&TC||v1&JC) isJump=true;
-      x=signed12((v1<<8)|v2); i+=2;
-      if (i>=data.length) break;
-      const v2b=data[i];
-      if (v2b&FL) { if (v2b&TC||v2b&JC) isJump=true; if (i+1>=data.length) break; y=signed12((v2b<<8)|data[i+1]); i+=2; }
-      else { y=signed7(v2b); i++; }
-    } else {
-      x=signed7(v1);
-      if (v2&FL) { if (v2&TC||v2&JC) isJump=true; if (i+2>=data.length) break; y=signed12((v2<<8)|data[i+2]); i+=3; }
-      else { y=signed7(v2); i+=2; }
-    }
-    cx+=x; cy+=y;
-    if (isJump) { stitches.push({x:cx,y:cy,type:"JUMP",colorIndex}); }
-    else {
-      stitches.push({x:cx,y:cy,type:"STITCH",colorIndex});
-      if(cx<minX)minX=cx; if(cx>maxX)maxX=cx; if(cy<minY)minY=cy; if(cy>maxY)maxY=cy;
-    }
+  const bounds: Bounds = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
+  const ci = { v: 0 };
+  readPecStitches(file, stitches, palette, ci, bounds);
+  while (palette.length <= ci.v) palette.push(PEC_PALETTE[palette.length % PEC_PALETTE.length]);
+  return { stitches, colorCount: ci.v + 1, palette,
+    width: bounds.minX === Infinity ? 0 : bounds.maxX - bounds.minX,
+    height: bounds.minY === Infinity ? 0 : bounds.maxY - bounds.minY,
+    stitchCount: stitches.filter(s => s.type === "STITCH").length, format: "PES", label };
+}
+
+/* ─── PEC PARSER (standalone .pec file) ─────────────────────────── */
+function parsePEC(buf: ArrayBuffer): ParsedDesign {
+  const file = new EmbFile(buf);
+  file.seek(0x38);
+  const colorChanges = file.getUint8();
+  const palette: string[] = [];
+  for (let i = 0; i <= colorChanges; i++) {
+    palette.push(PEC_PALETTE[file.getUint8() % 65]);
   }
-  while (palette.length<=colorIndex) palette.push(PEC_PALETTE[palette.length%PEC_PALETTE.length]);
-  return {stitches, colorCount:colorIndex+1, palette,
-          width:minX===Infinity?0:maxX-minX, height:minY===Infinity?0:maxY-minY,
-          stitchCount:stitches.filter(s=>s.type==="STITCH").length, format:"PES", label};
+  file.seek(0x21c);
+  const stitches: Stitch[] = [];
+  const bounds: Bounds = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
+  const ci = { v: 0 };
+  readPecStitches(file, stitches, palette, ci, bounds);
+  while (palette.length <= ci.v) palette.push(PEC_PALETTE[palette.length % PEC_PALETTE.length]);
+  return { stitches, colorCount: ci.v + 1, palette,
+    width: bounds.minX === Infinity ? 0 : bounds.maxX - bounds.minX,
+    height: bounds.minY === Infinity ? 0 : bounds.maxY - bounds.minY,
+    stitchCount: stitches.filter(s => s.type === "STITCH").length, format: "PEC", label: "PEC Design" };
+}
+
+/* ─── JEF PARSER ─────────────────────────────────────────────────── */
+const JEF_COLORS = [
+  "#000000","#000000","#FFFFFF","#FFFF17","#FAA060","#5C7649","#40C030","#65C2C8",
+  "#AC80BE","#F5BBCB","#FF0000","#C08000","#0000F0","#E4C35D","#A52A2A","#D5B0D4",
+  "#FCF294","#F0D0C0","#FFC000","#C9A480","#9B3D4B","#A0B8CC","#7FC21C","#B9B9B9",
+  "#A0A0A0","#98D6BD","#B8F0F0","#368BA0","#4F83AB","#386A91","#00206B","#E5C5CA",
+  "#F9676B","#E3311F","#E2A188","#B59474","#E4CF99","#E1CB00","#E1ADD4","#C3007E",
+  "#80004B","#A060B0","#C04020","#CAE0C0","#899856","#00AA00","#218A21","#5DAE94",
+  "#4CBF8F","#007772","#707070","#F2FFFF","#B15818","#CB8A07","#F7927B","#986929",
+  "#A27148","#7B554A","#4F3946","#523A97","#0000A0","#0096DE","#B2DD53","#FA8FBB",
+  "#DE649E","#B55066","#5E5747","#4C881F","#E4DC79","#CB8A1A","#C6AA42","#EC B02C",
+  "#F88040","#FFE505","#FA7A7A","#6BE000","#38AA6C","#E3C4B4","#E3AC81",
+];
+function parseJEF(buf: ArrayBuffer): ParsedDesign {
+  const file = new EmbFile(buf);
+  file.seek(24);
+  const colorCount = file.getInt32(file.tell(), true);
+  const stitchCountHint = file.getInt32(file.tell(), true);
+  file.seek(file.tell() + 84);
+  const palette: string[] = [];
+  for (let i = 0; i < colorCount; i++) {
+    const idx = file.getUint32(file.tell(), true) % JEF_COLORS.length;
+    palette.push(JEF_COLORS[idx]);
+  }
+  file.seek(file.tell() + (6 - colorCount) * 4);
+  const stitches: Stitch[] = [];
+  const bounds: Bounds = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
+  let cx = 0, cy = 0, colorIndex = 0;
+  let processed = 0;
+  while (file.tell() < file.byteLength - 1 && processed < stitchCountHint + 100) {
+    const byte1 = file.getUint8(), byte2 = file.getUint8();
+    if (byte1 === 0x80) {
+      if ((byte2 & 0x01) !== 0 || byte2 === 0x02 || byte2 === 0x04) {
+        const b1 = file.getUint8(), b2 = file.getUint8();
+        const type: StitchType = (byte2 & 0x01) ? "COLOR_CHANGE" : "TRIM";
+        const dx = b1 >= 0x80 ? -(~b1 & 0xff) - 1 : b1;
+        const dy = b2 >= 0x80 ? -(~b2 & 0xff) - 1 : b2;
+        cx += dx; cy += dy;
+        if (type === "COLOR_CHANGE") { stitches.push({ x: cx, y: cy, type, colorIndex }); colorIndex++; }
+        else { stitches.push({ x: cx, y: cy, type, colorIndex }); }
+        processed++; continue;
+      } else if (byte2 === 0x10) { break; }
+    }
+    const dx = byte1 >= 0x80 ? -(~byte1 & 0xff) - 1 : byte1;
+    const dy = byte2 >= 0x80 ? -(~byte2 & 0xff) - 1 : byte2;
+    cx += dx; cy -= dy;
+    stitches.push({ x: cx, y: cy, type: "STITCH", colorIndex });
+    updateBounds(bounds, cx, cy);
+    processed++;
+  }
+  while (palette.length <= colorIndex) palette.push(JEF_COLORS[palette.length % JEF_COLORS.length]);
+  return { stitches, colorCount: colorIndex + 1, palette,
+    width: bounds.minX === Infinity ? 0 : bounds.maxX - bounds.minX,
+    height: bounds.minY === Infinity ? 0 : bounds.maxY - bounds.minY,
+    stitchCount: stitches.filter(s => s.type === "STITCH").length, format: "JEF", label: "JEF Design" };
+}
+
+/* ─── EXP PARSER ─────────────────────────────────────────────────── */
+function parseEXP(buf: ArrayBuffer): ParsedDesign {
+  const file = new EmbFile(buf);
+  const stitches: Stitch[] = [];
+  const bounds: Bounds = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
+  let cx = 0, cy = 0, colorIndex = 0;
+  while (file.tell() < file.byteLength - 1) {
+    let b0 = file.getInt8(), b1 = file.getInt8();
+    let type: StitchType = "STITCH";
+    if (b0 === -128) {
+      if ((b1 & 1) !== 0) {
+        b0 = file.getInt8(); b1 = file.getInt8(); type = "COLOR_CHANGE";
+      } else if (b1 === 2 || b1 === 4) {
+        b0 = file.getInt8(); b1 = file.getInt8(); type = "TRIM";
+      } else if (b1 === -128) {
+        file.getInt8(); file.getInt8(); continue;
+      }
+    }
+    const dx = b0 > 128 ? -(~b0 & 0xff) - 1 : b0;
+    const dy = b1 > 128 ? -(~b1 & 0xff) - 1 : b1;
+    cx += dx; cy -= dy;
+    if (type === "COLOR_CHANGE") { stitches.push({ x: cx, y: cy, type, colorIndex }); colorIndex++; }
+    else { stitches.push({ x: cx, y: cy, type, colorIndex }); if (type === "STITCH") updateBounds(bounds, cx, cy); }
+  }
+  const defaults = ["#7A9E7E","#C8A96E","#5B7FA6","#D4845A","#9B6BB5","#4AABB8","#D4635A","#8B5E3C","#3A6351","#C4A35A"];
+  const palette = Array.from({ length: colorIndex + 1 }, (_, i) => defaults[i % defaults.length]);
+  return { stitches, colorCount: colorIndex + 1, palette,
+    width: bounds.minX === Infinity ? 0 : bounds.maxX - bounds.minX,
+    height: bounds.minY === Infinity ? 0 : bounds.maxY - bounds.minY,
+    stitchCount: stitches.filter(s => s.type === "STITCH").length, format: "EXP", label: "EXP Design" };
+}
+
+/* ─── DISPATCHER ─────────────────────────────────────────────────── */
+function parseEmbroidery(buf: ArrayBuffer, ext: string): ParsedDesign {
+  switch (ext) {
+    case "dst": return parseDST(buf);
+    case "jef": return parseJEF(buf);
+    case "exp": return parseEXP(buf);
+    case "pec": return parsePEC(buf);
+    default:    return parsePES(buf); // .pes and fallback
+  }
 }
 
 /* ─── FABRIC TEXTURE DRAWER ─────────────────────────────────────── */
@@ -378,14 +536,15 @@ export default function Viewer() {
   }, [isPlaying, design]);
 
   const loadFile = useCallback(async (file:File) => {
-    const ext = file.name.split(".").pop()?.toLowerCase();
-    if (ext!=="dst"&&ext!=="pes") { setError("Chỉ hỗ trợ file .pes và .dst"); return; }
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+    const supported = ["dst","pes","pec","jef","exp"];
+    if (!supported.includes(ext)) { setError("Định dạng không hỗ trợ. Vui lòng chọn .pes, .dst, .pec, .jef hoặc .exp"); return; }
     setLoading(true); setError(null); setDesign(null);
     setFileName(file.name.toUpperCase());
     animIdxRef.current = 0; setAnimMaxIdx(Infinity); setIsPlaying(false);
     try {
       const buf = await file.arrayBuffer();
-      const parsed = ext==="dst" ? parseDST(buf) : parsePES(buf);
+      const parsed = parseEmbroidery(buf, ext);
       if (!parsed.stitches.length) { setError("Không đọc được dữ liệu từ file."); setLoading(false); return; }
       setEditedColors([...parsed.palette]);
       const canvas = canvasRef.current;
