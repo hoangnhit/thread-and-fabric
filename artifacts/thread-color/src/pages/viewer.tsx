@@ -615,7 +615,7 @@ export default function Viewer() {
 
                 {/* Upload another */}
                 <label style={{cursor:"pointer"}}>
-                  <input type="file" accept=".pes,.dst" onChange={onFileInput} style={{display:"none"}}/>
+                  <input type="file" accept=".pes,.dst,.pec,.jef,.exp" onChange={onFileInput} style={{display:"none"}}/>
                   <div style={{background:"#1a1f30",border:"1px dashed #2a3050",borderRadius:8,color:"#9ca3af",padding:"8px 0",fontSize:12,textAlign:"center",cursor:"pointer"}}>
                     + Tải file khác
                   </div>
@@ -624,53 +624,71 @@ export default function Viewer() {
             </div>
           </>
         ) : (
-          /* ── Upload drop zone ── */
-          <div style={{width:"100%",maxWidth:600,marginTop:24}}>
-            <div
-              onDrop={onDrop}
-              onDragOver={e=>{e.preventDefault();setIsDragging(true);}}
-              onDragLeave={()=>setIsDragging(false)}
-              style={{border:`2px dashed ${isDragging?"#4A9EFF":"#2a3050"}`,borderRadius:14,
-                padding:"48px 32px",textAlign:"center",transition:"all 0.2s",
-                background:isDragging?"rgba(74,158,255,0.05)":"#0f1520"}}>
+          /* ── Upload drop zone (full area) ── */
+          <div
+            onDrop={onDrop}
+            onDragOver={e=>{e.preventDefault();setIsDragging(true);}}
+            onDragLeave={()=>setIsDragging(false)}
+            style={{flex:1,width:"100%",display:"flex",flexDirection:"column",alignItems:"center",
+              justifyContent:"center",gap:0,transition:"background 0.2s",
+              background:isDragging?"rgba(74,158,255,0.04)":"transparent",
+              border:isDragging?"2px dashed #4A9EFF":"2px dashed transparent",
+              borderRadius:12}}>
 
-              {loading ? (
-                <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:12}}>
-                  <div style={{fontSize:36}}>⏳</div>
-                  <div style={{color:"#4A9EFF"}}>Đang đọc file...</div>
-                </div>
-              ) : (
-                <>
-                  <div style={{marginBottom:24,display:"flex",justifyContent:"center"}}>
-                    <SpoolIcon size={56}/>
-                  </div>
-                  <div style={{fontSize:20,fontWeight:700,color:"#fff",marginBottom:8}}>
-                    Tải lên file thêu
-                  </div>
-                  <div style={{fontSize:13,color:"#6b7a99",lineHeight:1.6,marginBottom:28}}>
-                    Kéo thả hoặc chọn file .pes hoặc .dst<br/>để xem trước thiết kế thêu của bạn
-                  </div>
+            {loading ? (
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16}}>
+                {/* Animated spinner */}
+                <svg width={56} height={56} viewBox="0 0 56 56" style={{animation:"spin 1s linear infinite"}}>
+                  <circle cx={28} cy={28} r={22} stroke="#2a3050" strokeWidth={5} fill="none"/>
+                  <circle cx={28} cy={28} r={22} stroke="#4A9EFF" strokeWidth={5} fill="none"
+                    strokeDasharray="30 100" strokeLinecap="round"/>
+                </svg>
+                <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+                <div style={{color:"#4A9EFF",fontSize:15,fontWeight:600}}>Đang đọc file...</div>
+              </div>
+            ) : (
+              <>
+                {/* Upload arrow icon */}
+                <svg width={72} height={72} viewBox="0 0 72 72" fill="none" style={{marginBottom:24,opacity:isDragging?1:0.85}}>
+                  <circle cx={36} cy={36} r={35} stroke={isDragging?"#4A9EFF":"#2a3050"} strokeWidth={2} fill={isDragging?"rgba(74,158,255,0.08)":"#0f1520"}/>
+                  <path d="M36 20 L36 48" stroke={isDragging?"#4A9EFF":"#6b7a99"} strokeWidth={3} strokeLinecap="round"/>
+                  <path d="M25 31 L36 20 L47 31" stroke={isDragging?"#4A9EFF":"#6b7a99"} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                  <path d="M22 50 L50 50" stroke={isDragging?"#4A9EFF":"#6b7a99"} strokeWidth={3} strokeLinecap="round"/>
+                </svg>
 
-                  {/* File type icons */}
-                  <div style={{display:"flex",justifyContent:"center",gap:12,marginBottom:28}}>
-                    <FileIcon ext="pes" color="#3b6fd4"/>
-                    <FileIcon ext="dst" color="#3da86a"/>
-                    <FileIcon ext="pec" color="#c4893d"/>
-                    <FileIcon ext="jef" color="#9b59b6"/>
-                    <FileIcon ext="exp" color="#d4635a"/>
-                  </div>
+                <h2 style={{margin:"0 0 10px",fontSize:22,fontWeight:700,color:"#fff",letterSpacing:-0.3}}>
+                  Tải lên file thêu
+                </h2>
+                <p style={{margin:"0 0 6px",fontSize:13,color:"#6b7a99"}}>
+                  Dung lượng tối đa <strong style={{color:"#9ca3af"}}>50MB</strong>. Định dạng được hỗ trợ:
+                </p>
+                <p style={{margin:"0 0 32px",fontSize:13,color:"#9ca3af",fontWeight:600,letterSpacing:0.5}}>
+                  .pes &nbsp;·&nbsp; .dst &nbsp;·&nbsp; .pec &nbsp;·&nbsp; .jef &nbsp;·&nbsp; .exp
+                </p>
 
+                {/* Buttons row */}
+                <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:14}}>
                   <label style={{cursor:"pointer"}}>
-                    <input type="file" accept=".pes,.dst" onChange={onFileInput} style={{display:"none"}}/>
-                    <span style={{display:"inline-block",padding:"10px 32px",background:"#3b82f6",color:"#fff",borderRadius:8,fontWeight:700,fontSize:14,cursor:"pointer",boxShadow:"0 2px 12px rgba(59,130,246,0.4)"}}>
+                    <input type="file" accept=".pes,.dst,.pec,.jef,.exp" onChange={onFileInput} style={{display:"none"}}/>
+                    <span style={{display:"inline-block",padding:"11px 36px",background:"#3b82f6",color:"#fff",
+                      borderRadius:8,fontWeight:700,fontSize:15,cursor:"pointer",
+                      boxShadow:"0 2px 16px rgba(59,130,246,0.35)",transition:"opacity 0.15s"}}
+                      onMouseEnter={e=>(e.currentTarget.style.opacity="0.88")}
+                      onMouseLeave={e=>(e.currentTarget.style.opacity="1")}>
                       Chọn file
                     </span>
                   </label>
+                  <span style={{color:"#3a4560",fontSize:13}}>hoặc</span>
+                  <span style={{color:"#6b7a99",fontSize:13}}>kéo thả vào đây</span>
+                </div>
 
-                  {error && <div style={{color:"#ff6b6b",fontSize:13,marginTop:16}}>{error}</div>}
-                </>
-              )}
-            </div>
+                {error && <div style={{color:"#ff6b6b",fontSize:13,marginTop:4}}>{error}</div>}
+
+                <p style={{margin:"32px 0 0",fontSize:11,color:"#3a4560",maxWidth:420,textAlign:"center",lineHeight:1.6}}>
+                  Không tải lên tài liệu thêu có bản quyền mà bạn không sở hữu hoặc không có quyền sử dụng.
+                </p>
+              </>
+            )}
           </div>
         )}
       </div>
