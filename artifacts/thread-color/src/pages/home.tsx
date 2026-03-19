@@ -135,7 +135,15 @@ function ChartImage({ chart, pins, focusedCode }: { chart: typeof CHARTS[0]; pin
     <div style={{ overflow: "hidden", position: "relative", borderRadius: 14 }}>
       <div style={{ position: "absolute", top: 6, right: 6, zIndex: 200, display: "flex", gap: 4 }}>
         <button
-          onClick={() => setLocked(l => !l)}
+          onClick={() => {
+            if (locked) {
+              const pass = prompt("Nhập mật khẩu để mở khoá:");
+              if (pass === "922003") setLocked(false);
+              else if (pass !== null) alert("Sai mật khẩu!");
+            } else {
+              setLocked(true);
+            }
+          }}
           style={{
             border: `1.5px solid ${locked ? "#d1d5db" : "#7c3aed"}`,
             background: locked ? "rgba(255,255,255,0.9)" : "rgba(124,58,237,0.9)",
