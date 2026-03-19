@@ -114,6 +114,26 @@ const SCAN_STYLE  = { border: "#f59e0b", anim: "pa" };
 const FOCUSED_SCAN_STYLE = { border: "#059669", anim: "pc" };
 type OffsetMap = Record<string, { dx: number; dy: number }>;
 
+function localKey(chartId: string) {
+  return `chart-offsets-${chartId}`;
+}
+
+function readLocalOffsets(chartId: string): OffsetMap {
+  try {
+    const raw = localStorage.getItem(localKey(chartId));
+    return raw ? (JSON.parse(raw) as OffsetMap) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeLocalOffsets(chartId: string, offsets: OffsetMap) {
+  try {
+    localStorage.setItem(localKey(chartId), JSON.stringify(offsets));
+  } catch {
+  }
+}
+
 function ChartImage({ chart, pins, focusedCode, locked, resetSignal, sharedOffsets, onOffsetsChange }: {
   chart: typeof CHARTS[0];
   pins: { hit: Hit; slotStyle: typeof SLOT_STYLES[0] }[];
@@ -273,7 +293,13 @@ export default function Home() {
   const [focusedScan, setFocusedScan] = useState<Hit | null>(null);
   const [chartLocks, setChartLocks] = useState<Record<string, boolean>>({});
   const [chartResets, setChartResets] = useState<Record<string, number>>({});
-  const [sharedChartOffsets, setSharedChartOffsets] = useState<Record<string, OffsetMap>>({});
+  const [sharedChartOffsets, setSharedChartOffsets] = useState<Record<string, OffsetMap>>(() => {
+    const init: Record<string, OffsetMap> = {};
+    for (const chart of CHARTS) {
+      init[chart.id] = readLocalOffsets(chart.id);
+    }
+    return init;
+  });
   const [chartSaving, setChartSaving] = useState<Record<string, boolean>>({});
   const saveOffsetTimersRef = useRef<Record<string, number>>({});
   const latestOffsetsRef = useRef<Record<string, OffsetMap>>({});
@@ -360,6 +386,7 @@ export default function Home() {
 
   const pushChartOffsets = useCallback((chartId: string, offsets: OffsetMap, immediate = false) => {
     latestOffsetsRef.current[chartId] = offsets;
+    writeLocalOffsets(chartId, offsets);
     setSharedChartOffsets(prev => ({ ...prev, [chartId]: offsets }));
     const oldTimer = saveOffsetTimersRef.current[chartId];
     if (oldTimer) {
@@ -393,12 +420,13 @@ export default function Home() {
 
   useEffect(() => {
     let disposed = false;
-    const loadAll = async () => {
+    const loadFromRemoteIfLocalEmpty = async () => {
       const loaded = await Promise.all(CHARTS.map(async (chart) => {
-        if (saveOffsetTimersRef.current[chart.id] || chartSaving[chart.id]) {
+        const localOffsets = readLocalOffsets(chart.id);
+        if (Object.keys(localOffsets).length > 0) {
+          latestOffsetsRef.current[chart.id] = localOffsets;
           return { chartId: chart.id, offsets: null as OffsetMap | null };
         }
-        if (!isChartLocked(chart.id)) return { chartId: chart.id, offsets: null as OffsetMap | null };
         const offsets = await fetchChartOffsets(chart.id);
         return { chartId: chart.id, offsets };
       }));
@@ -406,21 +434,23 @@ export default function Home() {
       setSharedChartOffsets(prev => {
         const next = { ...prev };
         for (const item of loaded) {
-          if (item.offsets) next[item.chartId] = item.offsets;
+          if (item.offsets) {
+            next[item.chartId] = item.offsets;
+            latestOffsetsRef.current[item.chartId] = item.offsets;
+            writeLocalOffsets(item.chartId, item.offsets);
+          }
         }
         return next;
       });
     };
 
-    loadAll();
-    const intervalId = window.setInterval(loadAll, 5000);
+    loadFromRemoteIfLocalEmpty();
 
     return () => {
       disposed = true;
-      window.clearInterval(intervalId);
       Object.values(saveOffsetTimersRef.current).forEach((timerId) => window.clearTimeout(timerId));
     };
-  }, [fetchChartOffsets, chartLocks, chartSaving]);
+  }, [fetchChartOffsets]);
 
   // OCR state
   const [ocrImg, setOcrImg] = useState<string | null>(null);
