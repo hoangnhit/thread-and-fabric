@@ -175,7 +175,7 @@ export default function Home() {
   // OCR state
   const [ocrImg, setOcrImg] = useState<string | null>(null);
   const [ocrAnnotatedImg, setOcrAnnotatedImg] = useState<string | null>(null);
-  const [ocrStatus, setOcrStatus] = useState<"idle" | "running" | "done" | "error">("idle");
+  const [ocrStatus, setOcrStatus] = useState<"idle" | "running" | "done" | "error" | "badformat">("idle");
   const [ocrProgress, setOcrProgress] = useState(0);
   const [ocrFoundCount, setOcrFoundCount] = useState(0);
   const ocrFileRef = useRef<HTMLInputElement>(null);
@@ -257,6 +257,16 @@ export default function Home() {
   }, []);
 
   const handleOcrFile = useCallback(async (file: File) => {
+    const ALLOWED = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif"];
+    const isImage = file.type.startsWith("image/") && ALLOWED.includes(file.type.toLowerCase());
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+    const isRaw = ["arw", "cr2", "cr3", "nef", "orf", "rw2", "dng", "raf"].includes(ext);
+    if (isRaw || !isImage) {
+      setOcrImg(null);
+      setOcrAnnotatedImg(null);
+      setOcrStatus("badformat");
+      return;
+    }
     const previewUrl = URL.createObjectURL(file);
     setOcrImg(previewUrl);
     setOcrAnnotatedImg(null);
@@ -574,7 +584,7 @@ export default function Home() {
               <input
                 ref={ocrFileRef}
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
                 style={{ display: "none" }}
                 onChange={e => { if (e.target.files?.[0]) handleOcrFile(e.target.files[0]); e.target.value = ""; }}
               />
@@ -617,6 +627,16 @@ export default function Home() {
                 {ocrStatus === "error" && (
                   <div style={{ marginTop: 8, fontSize: 12, color: "#dc2626", fontWeight: 600 }}>
                     ❌ Không thể đọc ảnh. Thử lại hoặc nhập mã thủ công.
+                  </div>
+                )}
+                {ocrStatus === "badformat" && (
+                  <div style={{ marginTop: 8, padding: "10px 14px", background: "#fef2f2", border: "1.5px solid #fca5a5", borderRadius: 10, fontSize: 12, color: "#991b1b", lineHeight: 1.7 }}>
+                    <strong>⚠️ Định dạng ảnh không hỗ trợ</strong><br />
+                    File RAW (.ARW, .CR2, .NEF…) từ máy ảnh chuyên nghiệp không dùng được trực tiếp.<br />
+                    <strong>Cách khắc phục:</strong><br />
+                    &nbsp;• Chụp bằng điện thoại → ảnh JPEG tự động ✓<br />
+                    &nbsp;• Hoặc mở file RAW trong Lightroom / Photos → Xuất sang JPEG rồi upload<br />
+                    &nbsp;• Định dạng chấp nhận: <code style={{ background: "#fee2e2", padding: "1px 4px", borderRadius: 3 }}>JPEG · PNG · WEBP · HEIC</code>
                   </div>
                 )}
 
