@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, CSSProperties } from "react";
 import { useLocation } from "wouter";
 import { useTheme, mkTheme } from "@/contexts/ThemeContext";
+import { detectChart, drawDebugOverlay, type DetectionResult } from "@/utils/chartDetector";
 const API = "/api";
 
 /* ─── DATA ─────────────────────────────────────────────────────── */
@@ -175,83 +176,81 @@ export default function Home() {
   // OCR state
   const [ocrImg, setOcrImg] = useState<string | null>(null);
   const [ocrAnnotatedImg, setOcrAnnotatedImg] = useState<string | null>(null);
+  const [ocrDebugImg, setOcrDebugImg] = useState<string | null>(null);
+  const [ocrShowDebug, setOcrShowDebug] = useState(false);
   const [ocrStatus, setOcrStatus] = useState<"idle" | "running" | "done" | "error" | "badformat">("idle");
   const [ocrProgress, setOcrProgress] = useState(0);
   const [ocrFoundCount, setOcrFoundCount] = useState(0);
   const ocrFileRef = useRef<HTMLInputElement>(null);
+  const [ocrLabels, setOcrLabels] = useState<{ code: string; xPct: number; yPct: number }[]>([]);
+  const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
+  const ocrImgContainerRef = useRef<HTMLDivElement>(null);
 
-  interface OcrEntry { code: string; xPct: number; yPct: number }
-  interface OcrCol { label: string; entries: OcrEntry[] }
+  interface OcrCol { label: string; codes: string[] }
 
-  const annotateImage = useCallback(async (
+  const loadImage = useCallback((src: string) =>
+    new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    }), []);
+
+  const annotateWithDetector = useCallback(async (
     imgUrl: string,
-    columns: OcrCol[]
-  ): Promise<string> => {
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const image = new Image();
-      image.onload = () => resolve(image);
-      image.onerror = reject;
-      image.src = imgUrl;
-    });
+    ocrColumns: OcrCol[],
+    debug: boolean
+  ): Promise<{ labels: { code: string; xPct: number; yPct: number }[]; debugImg: string | null }> => {
+    const img = await loadImage(imgUrl);
+    const W = img.naturalWidth;
+    const H = img.naturalHeight;
 
-    const canvas = document.createElement("canvas");
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
-    const ctx = canvas.getContext("2d")!;
+    const cvs = document.createElement("canvas");
+    cvs.width = W;
+    cvs.height = H;
+    const ctx = cvs.getContext("2d")!;
     ctx.drawImage(img, 0, 0);
+    const imageData = ctx.getImageData(0, 0, W, H);
+    const det: DetectionResult = detectChart(imageData);
 
-    const W = canvas.width;
-    const H = canvas.height;
-    const fontSize = Math.max(16, Math.round(W * 0.022));
+    let debugDataUrl: string | null = null;
+    if (debug) {
+      const dbgCvs = document.createElement("canvas");
+      dbgCvs.width = W;
+      dbgCvs.height = H;
+      const dbgCtx = dbgCvs.getContext("2d")!;
+      dbgCtx.drawImage(img, 0, 0);
+      drawDebugOverlay(dbgCtx, det);
+      debugDataUrl = dbgCvs.toDataURL("image/jpeg", 0.92);
+    }
 
-    const drawRoundRect = (x: number, y: number, w: number, h: number, r: number) => {
-      ctx.beginPath();
-      ctx.moveTo(x + r, y);
-      ctx.lineTo(x + w - r, y);
-      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-      ctx.lineTo(x + w, y + h - r);
-      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-      ctx.lineTo(x + r, y + h);
-      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-      ctx.lineTo(x, y + r);
-      ctx.quadraticCurveTo(x, y, x + r, y);
-      ctx.closePath();
-    };
+    const labels: { code: string; xPct: number; yPct: number }[] = [];
+    const detCols = det.columns;
+    const nCols = Math.min(ocrColumns.length, detCols.length);
 
-    ctx.font = `bold ${fontSize}px Arial, sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
+    for (let ci = 0; ci < nCols; ci++) {
+      const ocrCodes = ocrColumns[ci].codes;
+      const detCol = detCols[ci];
+      const matches = detCol.matches;
+      const nItems = Math.min(ocrCodes.length, matches.length);
+      for (let ri = 0; ri < nItems; ri++) {
+        const code = ocrCodes[ri];
+        if (!code || !code.trim()) continue;
+        const m = matches[ri];
+        labels.push({
+          code,
+          xPct: m.labelCenter.x / W,
+          yPct: m.swatchCenter.y / H,
+        });
+      }
+    }
 
-    columns.forEach(col => {
-      col.entries.forEach(entry => {
-        const cx = entry.xPct * W;
-        const cy = entry.yPct * H;
-        const tw = ctx.measureText(entry.code).width;
-        const pad = fontSize * 0.35;
-        const rw = tw + pad * 2;
-        const rh = fontSize + pad * 1.4;
-        const rx = cx - rw / 2;
-        const ry = cy - rh / 2;
-        const radius = rh * 0.32;
-        ctx.fillStyle = "rgba(255,255,255,0.92)";
-        drawRoundRect(rx, ry, rw, rh, radius);
-        ctx.fill();
-        ctx.fillStyle = "#111111";
-        ctx.fillText(entry.code, cx, cy);
-      });
-    });
-
-    return canvas.toDataURL("image/jpeg", 0.92);
-  }, []);
+    return { labels, debugImg: debugDataUrl };
+  }, [loadImage]);
 
   const resizeImage = useCallback(async (file: File, maxDim = 2400): Promise<{ base64: string; previewUrl: string }> => {
     const blobUrl = URL.createObjectURL(file);
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const i = new Image();
-      i.onload = () => resolve(i);
-      i.onerror = reject;
-      i.src = blobUrl;
-    });
+    const img = await loadImage(blobUrl);
     let w = img.naturalWidth;
     let h = img.naturalHeight;
     if (w > maxDim || h > maxDim) {
@@ -267,7 +266,7 @@ export default function Home() {
     const dataUrl = cvs.toDataURL("image/jpeg", 0.88);
     const base64 = dataUrl.split(",")[1];
     return { base64, previewUrl: dataUrl };
-  }, []);
+  }, [loadImage]);
 
   const handleOcrFile = useCallback(async (file: File) => {
     const ALLOWED = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif"];
@@ -277,11 +276,13 @@ export default function Home() {
     if (isRaw || !isImage) {
       setOcrImg(null);
       setOcrAnnotatedImg(null);
+      setOcrDebugImg(null);
       setOcrStatus("badformat");
       return;
     }
     setOcrImg(null);
     setOcrAnnotatedImg(null);
+    setOcrDebugImg(null);
     setOcrStatus("running");
     setOcrProgress(0);
     try {
@@ -301,17 +302,19 @@ export default function Home() {
       const codeText = codes.join(", ");
       setScanText(prev => prev ? prev + "\n" + codeText : codeText);
       setOcrFoundCount(codes.length);
-      if (columns && columns.length > 0 && columns.some(c => c.entries?.length > 0)) {
+      if (columns && columns.length > 0 && columns.some(c => c.codes?.length > 0)) {
         setOcrProgress(92);
-        const annotated = await annotateImage(previewUrl, columns);
-        setOcrAnnotatedImg(annotated);
+        const { labels, debugImg } = await annotateWithDetector(previewUrl, columns, true);
+        setOcrLabels(labels);
+        setOcrAnnotatedImg("done");
+        setOcrDebugImg(debugImg);
       }
       setOcrProgress(100);
       setOcrStatus("done");
     } catch {
       setOcrStatus("error");
     }
-  }, [annotateImage, resizeImage]);
+  }, [annotateWithDetector, resizeImage]);
 
   useEffect(() => {
     const el = document.querySelector(".page-scroll-root") ?? window;
@@ -369,7 +372,7 @@ export default function Home() {
   const switchMode = useCallback((m: Mode) => {
     setMode(m);
     setQ1(""); setQ2(""); setScanText(""); setFocusedScan(null);
-    setOcrImg(null); setOcrAnnotatedImg(null); setOcrStatus("idle"); setOcrProgress(0); setOcrFoundCount(0);
+    setOcrImg(null); setOcrAnnotatedImg(null); setOcrDebugImg(null); setOcrShowDebug(false); setOcrStatus("idle"); setOcrProgress(0); setOcrFoundCount(0);
   }, []);
 
   /* main tab style */
@@ -613,9 +616,22 @@ export default function Home() {
                   </button>
                   {ocrImg && ocrStatus !== "running" && (
                     <button
-                      onClick={() => { setOcrImg(null); setOcrAnnotatedImg(null); setOcrStatus("idle"); setOcrProgress(0); setOcrFoundCount(0); }}
+                      onClick={() => { setOcrImg(null); setOcrAnnotatedImg(null); setOcrDebugImg(null); setOcrShowDebug(false); setOcrStatus("idle"); setOcrProgress(0); setOcrFoundCount(0); setOcrLabels([]); }}
                       style={{ border: "none", background: "transparent", color: "#9ca3af", cursor: "pointer", fontSize: 12, padding: "4px 6px", borderRadius: 6 }}
                     >✕ Xoá ảnh</button>
+                  )}
+                  {ocrDebugImg && ocrStatus === "done" && (
+                    <button
+                      onClick={() => setOcrShowDebug(d => !d)}
+                      style={{
+                        border: `1.5px solid ${ocrShowDebug ? "#f59e0b" : "#d1d5db"}`,
+                        background: ocrShowDebug ? "#fef3c7" : "#f9fafb",
+                        color: ocrShowDebug ? "#92400e" : "#6b7280",
+                        cursor: "pointer", fontSize: 11, fontWeight: 700,
+                        padding: "4px 10px", borderRadius: 8,
+                        transition: "all 0.15s",
+                      }}
+                    >{ocrShowDebug ? "🔍 Debug ON" : "🔍 Debug"}</button>
                   )}
                 </div>
 
@@ -647,12 +663,64 @@ export default function Home() {
                 )}
 
                 {ocrImg && (
-                  <div style={{ marginTop: 8, position: "relative", display: "block", borderRadius: 10, overflow: "hidden", border: `1.5px solid ${ocrAnnotatedImg ? "#7c3aed" : "#c4b5fd"}` }}>
+                  <div
+                    ref={ocrImgContainerRef}
+                    style={{ marginTop: 8, position: "relative", display: "inline-block", borderRadius: 10, overflow: "hidden", border: `1.5px solid ${ocrAnnotatedImg ? "#7c3aed" : "#c4b5fd"}`, cursor: draggingIdx !== null ? "grabbing" : "default", userSelect: "none", width: "100%" }}
+                    onMouseMove={e => {
+                      if (draggingIdx === null) return;
+                      const rect = ocrImgContainerRef.current?.getBoundingClientRect();
+                      if (!rect) return;
+                      const xPct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                      const yPct = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+                      setOcrLabels(prev => prev.map((lb, i) => i === draggingIdx ? { ...lb, xPct, yPct } : lb));
+                    }}
+                    onMouseUp={() => setDraggingIdx(null)}
+                    onMouseLeave={() => setDraggingIdx(null)}
+                    onTouchMove={e => {
+                      if (draggingIdx === null) return;
+                      const rect = ocrImgContainerRef.current?.getBoundingClientRect();
+                      if (!rect) return;
+                      const touch = e.touches[0];
+                      const xPct = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
+                      const yPct = Math.max(0, Math.min(1, (touch.clientY - rect.top) / rect.height));
+                      setOcrLabels(prev => prev.map((lb, i) => i === draggingIdx ? { ...lb, xPct, yPct } : lb));
+                    }}
+                    onTouchEnd={() => setDraggingIdx(null)}
+                  >
                     <img
-                      src={ocrAnnotatedImg ?? ocrImg}
-                      alt={ocrAnnotatedImg ? "Ảnh đã nhận diện mã" : "OCR source"}
-                      style={{ display: "block", width: "100%", maxHeight: ocrAnnotatedImg ? 420 : 200, objectFit: "contain" }}
+                      src={ocrShowDebug && ocrDebugImg ? ocrDebugImg : ocrImg}
+                      alt={ocrShowDebug ? "Debug overlay" : "OCR source"}
+                      style={{ display: "block", width: "100%", pointerEvents: "none" }}
+                      draggable={false}
                     />
+                    {!ocrShowDebug && ocrLabels.map((lb, i) => (
+                      <div
+                        key={`ocr-lb-${i}`}
+                        onMouseDown={e => { e.preventDefault(); setDraggingIdx(i); }}
+                        onTouchStart={e => { e.preventDefault(); setDraggingIdx(i); }}
+                        style={{
+                          position: "absolute",
+                          left: `${lb.xPct * 100}%`,
+                          top: `${lb.yPct * 100}%`,
+                          transform: "translate(-50%, -50%)",
+                          background: draggingIdx === i ? "rgba(124,58,237,0.95)" : "rgba(255,255,255,0.94)",
+                          color: draggingIdx === i ? "#fff" : "#111",
+                          padding: "1px 5px",
+                          borderRadius: 4,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          fontFamily: "monospace",
+                          whiteSpace: "nowrap",
+                          cursor: draggingIdx === i ? "grabbing" : "grab",
+                          boxShadow: draggingIdx === i ? "0 0 0 2px #7c3aed, 0 2px 8px rgba(124,58,237,0.4)" : "0 1px 3px rgba(0,0,0,0.3)",
+                          zIndex: draggingIdx === i ? 50 : 10,
+                          lineHeight: 1.3,
+                          transition: draggingIdx === i ? "none" : "box-shadow 0.15s",
+                        }}
+                      >
+                        {lb.code}
+                      </div>
+                    ))}
                     {ocrStatus === "running" && (
                       <div style={{ position: "absolute", inset: 0, background: "rgba(109,40,217,0.22)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <span style={{ background: "rgba(109,40,217,0.85)", color: "white", borderRadius: 8, padding: "4px 12px", fontSize: 13, fontWeight: 700 }}>
@@ -660,9 +728,11 @@ export default function Home() {
                         </span>
                       </div>
                     )}
-                    {ocrAnnotatedImg && (
-                      <div style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(109,40,217,0.85)", color: "white", borderRadius: 6, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>
-                        ✓ Đã gán mã
+                    {ocrLabels.length > 0 && !ocrShowDebug && (
+                      <div style={{ position: "absolute", bottom: 6, right: 6, display: "flex", gap: 6, alignItems: "center" }}>
+                        <span style={{ background: "rgba(109,40,217,0.85)", color: "white", borderRadius: 6, padding: "2px 8px", fontSize: 10, fontWeight: 700 }}>
+                          {ocrLabels.length} mã · kéo để di chuyển
+                        </span>
                       </div>
                     )}
                   </div>

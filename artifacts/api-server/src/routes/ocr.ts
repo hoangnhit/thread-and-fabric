@@ -8,15 +8,9 @@ const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
 });
 
-export interface OcrCodeEntry {
-  code: string;
-  xPct: number;
-  yPct: number;
-}
-
 export interface OcrColumn {
   label: string;
-  entries: OcrCodeEntry[];
+  codes: string[];
 }
 
 export interface OcrResult {
@@ -41,16 +35,14 @@ router.post("/ocr-image", async (req, res) => {
           content: [
             {
               type: "text",
-              text: `Analyze this GINGKO embroidery thread color chart photo. Extract ALL thread codes and their EXACT pixel positions as fractions of image size.
+              text: `Read ALL thread codes from this GINGKO embroidery thread color chart photo.
 
-Codes look like: G622, 5860, 9030, 00344. Chart has 5 vertical columns (A-E or F-J or K-O), ~20 rows each.
+The chart has 5 labeled columns (e.g. A-E or F-J or K-O), each with ~20 thread codes printed next to color swatches. Codes look like: G622, G529, 5860, 9030, 00344.
 
-For each code: report its center position as xPct (0=left, 1=right) and yPct (0=top, 1=bottom). Be PRECISE - each code must align with the color swatch on its SAME row.
+Read each column top-to-bottom. Return ONLY valid JSON, no markdown:
+{"chart":"ae","columns":[{"label":"A","codes":["G622","G661","G561",...]},{"label":"B","codes":[...]},{"label":"C","codes":[...]},{"label":"D","codes":[...]},{"label":"E","codes":[...]}]}
 
-Return ONLY valid JSON, no markdown backticks:
-{"chart":"ae","columns":[{"label":"A","entries":[{"code":"G622","xPct":0.05,"yPct":0.09},...]},{"label":"B","entries":[...]},{"label":"C","entries":[...]},{"label":"D","entries":[...]},{"label":"E","entries":[...]}]}
-
-Use "ae" for A-E, "fj" for F-J, "ko" for K-O.`,
+Use "ae" for columns A-E, "fj" for F-J, "ko" for K-O.`,
             },
             {
               type: "image_url",
@@ -62,7 +54,7 @@ Use "ae" for A-E, "fj" for F-J, "ko" for K-O.`,
           ],
         },
       ],
-      max_completion_tokens: 16384,
+      max_completion_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content ?? "";
@@ -79,33 +71,20 @@ Use "ae" for A-E, "fj" for F-J, "ko" for K-O.`,
 
     const parsed = JSON.parse(jsonMatch[0]) as {
       chart: string;
-      columns: Array<{
-        label: string;
-        entries: Array<{ code: string; xPct?: number; yPct?: number }>;
-      }>;
+      columns: Array<{ label: string; codes: string[] }>;
     };
 
     const rawColumns = parsed.columns ?? [];
     const columns: OcrColumn[] = rawColumns.map(col => ({
-      label: col.label,
-      entries: (col.entries ?? [])
-        .filter(e => e.code && typeof e.code === "string" && e.code.trim().length > 0)
-        .map(e => ({
-          code: e.code.trim(),
-          xPct: typeof e.xPct === "number" ? e.xPct : 0.1,
-          yPct: typeof e.yPct === "number" ? e.yPct : 0.1,
-        })),
+      label: col.label ?? "",
+      codes: (col.codes ?? [])
+        .filter(c => typeof c === "string" && c.trim().length > 0)
+        .map(c => c.trim()),
     }));
 
-    const codes = columns.flatMap(col => col.entries.map(e => e.code));
+    const codes = columns.flatMap(col => col.codes);
 
-    const result: OcrResult = {
-      chart: parsed.chart ?? "unknown",
-      columns,
-      codes,
-    };
-
-    res.json(result);
+    res.json({ chart: parsed.chart ?? "unknown", columns, codes } as OcrResult);
   } catch (err) {
     console.error("OCR error:", err);
     res.status(500).json({ error: "Failed to analyze image", codes: [], columns: [], chart: "unknown" });

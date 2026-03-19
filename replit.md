@@ -101,7 +101,14 @@ React + Vite frontend for Gingko Brand embroidery thread color lookup. Routes:
   - PES parser: parses PEC block (offset at byte 8), stitch data at PEC+528, signed7/signed12 encoding
   - Canvas renderer: zoom/pan, multi-color segments, drag support, touch pinch-zoom
 
-API endpoints used: `GET /api/fabrics`, `POST/PUT/DELETE /api/fabrics/:id`, `GET /api/proxy-image?url=<encoded>`
+OCR AI Vision feature:
+  - `POST /api/ocr-image` — sends thread chart photo to GPT vision, returns column-organized codes (no positions)
+  - Client-side `chartDetector.ts` detects swatch column positions and boundaries via pixel analysis
+  - Labels rendered as draggable HTML elements overlaid on the image (not burned into canvas)
+  - User can drag any label to reposition it after OCR detection
+  - Debug mode shows column bounds, swatch boxes, and match lines
+
+API endpoints used: `GET /api/fabrics`, `POST/PUT/DELETE /api/fabrics/:id`, `GET /api/proxy-image?url=<encoded>`, `POST /api/ocr-image`
 
 ### `scripts` (`@workspace/scripts`)
 
