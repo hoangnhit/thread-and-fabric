@@ -341,10 +341,26 @@ export default function Home() {
     });
   }, []);
 
+  const withTimeout = useCallback(<T,>(promise: Promise<T>, ms = 12000): Promise<T> => {
+    return new Promise<T>((resolve, reject) => {
+      const id = window.setTimeout(() => {
+        reject(new Error("save timeout"));
+      }, ms);
+      promise
+        .then((value) => {
+          window.clearTimeout(id);
+          resolve(value);
+        })
+        .catch((err) => {
+          window.clearTimeout(id);
+          reject(err);
+        });
+    });
+  }, []);
+
   const pushChartOffsets = useCallback((chartId: string, offsets: OffsetMap, immediate = false) => {
     latestOffsetsRef.current[chartId] = offsets;
     setSharedChartOffsets(prev => ({ ...prev, [chartId]: offsets }));
-    setChartSaving(prev => ({ ...prev, [chartId]: true }));
     const oldTimer = saveOffsetTimersRef.current[chartId];
     if (oldTimer) {
       window.clearTimeout(oldTimer);
@@ -353,7 +369,8 @@ export default function Home() {
 
     if (immediate) {
       const current = latestOffsetsRef.current[chartId] ?? offsets;
-      void persistChartOffsets(chartId, current)
+      setChartSaving(prev => ({ ...prev, [chartId]: true }));
+      void withTimeout(persistChartOffsets(chartId, current))
         .catch(() => {})
         .finally(() => {
           setChartSaving(prev => ({ ...prev, [chartId]: false }));
@@ -363,15 +380,16 @@ export default function Home() {
 
     saveOffsetTimersRef.current[chartId] = window.setTimeout(async () => {
       try {
+        setChartSaving(prev => ({ ...prev, [chartId]: true }));
         const current = latestOffsetsRef.current[chartId] ?? offsets;
-        await persistChartOffsets(chartId, current);
+        await withTimeout(persistChartOffsets(chartId, current));
       } catch {
       } finally {
         delete saveOffsetTimersRef.current[chartId];
         setChartSaving(prev => ({ ...prev, [chartId]: false }));
       }
     }, 350);
-  }, [persistChartOffsets]);
+  }, [persistChartOffsets, withTimeout]);
 
   useEffect(() => {
     let disposed = false;
