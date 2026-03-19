@@ -1,0 +1,7 @@
+[build]
+base = "artifacts/thread-color"
+command = "PORT=5176 BASE_PATH=/ pnpm --filter @workspace/thread-color... run build"
+publish = "dist/public"
+
+[build.environment]
+NODE_VERSION = "22"
