@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, CSSProperties } from "react";
 import { useLocation } from "wouter";
 import { useTheme, mkTheme } from "@/contexts/ThemeContext";
+import { createWorker } from "tesseract.js";
 
 /* ─── DATA ─────────────────────────────────────────────────────── */
 const CHART_CONFIG = {
@@ -171,6 +172,32 @@ export default function Home() {
   const chartRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const topRef = useRef<HTMLDivElement>(null);
 
+  // OCR state
+  const [ocrImg, setOcrImg] = useState<string | null>(null);
+  const [ocrStatus, setOcrStatus] = useState<"idle" | "running" | "done" | "error">("idle");
+  const [ocrProgress, setOcrProgress] = useState(0);
+  const ocrFileRef = useRef<HTMLInputElement>(null);
+
+  const handleOcrFile = useCallback(async (file: File) => {
+    const url = URL.createObjectURL(file);
+    setOcrImg(url);
+    setOcrStatus("running");
+    setOcrProgress(0);
+    try {
+      const worker = await createWorker("eng", 1, {
+        logger: (m: { status: string; progress: number }) => {
+          if (m.status === "recognizing text") setOcrProgress(Math.round(m.progress * 100));
+        },
+      });
+      const { data } = await worker.recognize(url);
+      await worker.terminate();
+      setScanText(prev => prev ? prev + "\n" + data.text : data.text);
+      setOcrStatus("done");
+    } catch {
+      setOcrStatus("error");
+    }
+  }, []);
+
   useEffect(() => {
     const el = document.querySelector(".page-scroll-root") ?? window;
     const handler = () => {
@@ -227,6 +254,7 @@ export default function Home() {
   const switchMode = useCallback((m: Mode) => {
     setMode(m);
     setQ1(""); setQ2(""); setScanText(""); setFocusedScan(null);
+    setOcrImg(null); setOcrStatus("idle"); setOcrProgress(0);
   }, []);
 
   /* main tab style */
@@ -443,8 +471,76 @@ export default function Home() {
           {/* ── SCAN MODE ── */}
           {!collapsed && mode === "scan" && (
             <>
+              {/* ── OCR image upload ── */}
+              <input
+                ref={ocrFileRef}
+                type="file"
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={e => { if (e.target.files?.[0]) handleOcrFile(e.target.files[0]); e.target.value = ""; }}
+              />
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <button
+                    onClick={() => ocrFileRef.current?.click()}
+                    disabled={ocrStatus === "running"}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      padding: "7px 14px", border: "1.5px solid #7c3aed",
+                      borderRadius: 10, cursor: ocrStatus === "running" ? "not-allowed" : "pointer",
+                      background: ocrStatus === "running" ? "#ede9fe" : "#f5f3ff",
+                      color: "#6d28d9", fontSize: 13, fontWeight: 700,
+                      transition: "all 0.15s",
+                      opacity: ocrStatus === "running" ? 0.7 : 1,
+                    }}
+                  >
+                    📷 {ocrStatus === "running" ? `Đang nhận diện... ${ocrProgress}%` : "Nhận diện từ ảnh"}
+                  </button>
+                  {ocrImg && ocrStatus !== "running" && (
+                    <button
+                      onClick={() => { setOcrImg(null); setOcrStatus("idle"); setOcrProgress(0); }}
+                      style={{ border: "none", background: "transparent", color: "#9ca3af", cursor: "pointer", fontSize: 12, padding: "4px 6px", borderRadius: 6 }}
+                    >✕ Xoá ảnh</button>
+                  )}
+                </div>
+
+                {ocrStatus === "running" && (
+                  <div style={{ marginTop: 8, height: 6, background: "#ede9fe", borderRadius: 4, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${ocrProgress}%`, background: "linear-gradient(90deg,#7c3aed,#a78bfa)", borderRadius: 4, transition: "width 0.3s" }} />
+                  </div>
+                )}
+
+                {ocrStatus === "done" && (
+                  <div style={{ marginTop: 8, fontSize: 12, color: "#15803d", fontWeight: 600 }}>
+                    ✅ Nhận diện xong — các mã được thêm vào bên dưới
+                  </div>
+                )}
+                {ocrStatus === "error" && (
+                  <div style={{ marginTop: 8, fontSize: 12, color: "#dc2626", fontWeight: 600 }}>
+                    ❌ Không thể đọc ảnh. Thử lại hoặc nhập mã thủ công.
+                  </div>
+                )}
+
+                {ocrImg && (
+                  <div style={{ marginTop: 8, position: "relative", display: "inline-block", borderRadius: 10, overflow: "hidden", border: "1.5px solid #c4b5fd" }}>
+                    <img
+                      src={ocrImg}
+                      alt="OCR source"
+                      style={{ display: "block", maxWidth: "100%", maxHeight: 180, objectFit: "contain" }}
+                    />
+                    {ocrStatus === "running" && (
+                      <div style={{ position: "absolute", inset: 0, background: "rgba(109,40,217,0.22)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <span style={{ background: "rgba(109,40,217,0.85)", color: "white", borderRadius: 8, padding: "4px 12px", fontSize: 13, fontWeight: 700 }}>
+                          {ocrProgress}%
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <p style={{ margin: "0 0 10px", fontSize: 13, color: "#6b7280", lineHeight: 1.5 }}>
-                Dán danh sách mã chỉ vào đây (ví dụ: <span style={{ fontFamily: "monospace", background: "#f1f5f9", padding: "1px 6px", borderRadius: 4 }}>R=G721, P=G921, Y=5675</span>). App sẽ tìm và khoanh tất cả mã có trong bảng.
+                Hoặc dán danh sách mã chỉ vào đây (ví dụ: <span style={{ fontFamily: "monospace", background: "#f1f5f9", padding: "1px 6px", borderRadius: 4 }}>R=G721, P=G921, Y=5675</span>)
               </p>
               <textarea
                 autoFocus
