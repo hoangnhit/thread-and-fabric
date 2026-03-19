@@ -100,14 +100,6 @@ function ChartImage({ chart, pins, focusedCode }: { chart: typeof CHARTS[0]; pin
   return (
     <div style={{ overflow: "hidden", position: "relative", borderRadius: 14 }}>
       <div ref={wrapRef} style={{ position: "relative" }}>
-        <img
-          src={`${import.meta.env.BASE_URL}${chart.file.replace(/^\//, "")}`} alt={chart.label}
-          style={{ display: "block", width: "100%", userSelect: "none" }}
-          onLoad={() => {
-            const img = wrapRef.current?.querySelector("img");
-            if (img) setSize({ w: img.offsetWidth, h: img.offsetHeight });
-          }}
-        />
         {size.w > 0 && chart.columns.flatMap(col =>
           col.codes.map((code, row) => {
             const cx = col.xPct * size.w;
@@ -188,6 +180,7 @@ export default function Home() {
     gridBottomPct: number
   ): Promise<string> => {
     const FALLBACK_X: Record<string, number[]> = {
+      ae: [0.10, 0.28, 0.46, 0.64, 0.82],
       fj: [0.059, 0.236, 0.456, 0.653, 0.852],
       ko: [0.076, 0.250, 0.461, 0.654, 0.845],
     };
@@ -256,6 +249,31 @@ export default function Home() {
     return canvas.toDataURL("image/jpeg", 0.92);
   }, []);
 
+  const resizeImage = useCallback(async (file: File, maxDim = 2400): Promise<{ base64: string; previewUrl: string }> => {
+    const blobUrl = URL.createObjectURL(file);
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = reject;
+      i.src = blobUrl;
+    });
+    let w = img.naturalWidth;
+    let h = img.naturalHeight;
+    if (w > maxDim || h > maxDim) {
+      const ratio = Math.min(maxDim / w, maxDim / h);
+      w = Math.round(w * ratio);
+      h = Math.round(h * ratio);
+    }
+    const cvs = document.createElement("canvas");
+    cvs.width = w;
+    cvs.height = h;
+    const ctx = cvs.getContext("2d")!;
+    ctx.drawImage(img, 0, 0, w, h);
+    const dataUrl = cvs.toDataURL("image/jpeg", 0.88);
+    const base64 = dataUrl.split(",")[1];
+    return { base64, previewUrl: dataUrl };
+  }, []);
+
   const handleOcrFile = useCallback(async (file: File) => {
     const ALLOWED = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif"];
     const isImage = file.type.startsWith("image/") && ALLOWED.includes(file.type.toLowerCase());
@@ -267,26 +285,19 @@ export default function Home() {
       setOcrStatus("badformat");
       return;
     }
-    const previewUrl = URL.createObjectURL(file);
-    setOcrImg(previewUrl);
+    setOcrImg(null);
     setOcrAnnotatedImg(null);
     setOcrStatus("running");
     setOcrProgress(0);
     try {
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          resolve(result.split(",")[1]);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      setOcrProgress(10);
+      const { base64, previewUrl } = await resizeImage(file);
+      setOcrImg(previewUrl);
       setOcrProgress(40);
       const res = await fetch(`${API}/ocr-image`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: base64, mimeType: file.type || "image/jpeg" }),
+        body: JSON.stringify({ imageBase64: base64, mimeType: "image/jpeg" }),
       });
       setOcrProgress(85);
       if (!res.ok) throw new Error("API error");
@@ -305,7 +316,7 @@ export default function Home() {
     } catch {
       setOcrStatus("error");
     }
-  }, [annotateImage]);
+  }, [annotateImage, resizeImage]);
 
   useEffect(() => {
     const el = document.querySelector(".page-scroll-root") ?? window;

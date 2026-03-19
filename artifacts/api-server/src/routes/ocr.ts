@@ -15,7 +15,7 @@ export interface OcrColumn {
 }
 
 export interface OcrResult {
-  chart: "fj" | "ko" | "unknown";
+  chart: "ae" | "fj" | "ko" | "unknown";
   gridTopPct: number;
   gridBottomPct: number;
   columns: OcrColumn[];
@@ -38,36 +38,39 @@ router.post("/ocr-image", async (req, res) => {
           content: [
             {
               type: "text",
-              text: `You are analyzing a Vietnamese embroidery thread color chart image.
+              text: `You are analyzing a GINGKO embroidery thread color chart image. Extract ALL thread color codes visible.
 
-Thread codes look like: G followed by digits (G532, G629), digits only (5860, 9030), or starting with 00 (00555).
+Thread codes look like: G followed by digits (G532, G629), digits only (5860, 9030), or starting with 00 (00344, 00555).
 
-The chart has 5 vertical columns with letter headers:
-- FJ chart: columns F, G, H, I, J
-- KO chart: columns K, L, M, N, O
+The chart has 5 vertical columns with letter headers. Identify which chart type:
+- "ae" chart: columns A, B, C, D, E
+- "fj" chart: columns F, G, H, I, J
+- "ko" chart: columns K, L, M, N, O
 
-Each column has up to 20 color swatches with a small white label showing the code, arranged top to bottom.
+Each column has up to 20 color swatches with a code label, arranged top to bottom.
 
-IMPORTANT: Also estimate the SPATIAL LAYOUT of the chart in this image:
-- gridTopPct: the Y position (as fraction 0.0-1.0 of image height) where the FIRST ROW of labels starts
-- gridBottomPct: the Y position where the LAST ROW of labels ends
-- For each column, xPct: the X center position (as fraction 0.0-1.0 of image width) of that column's labels
+CRITICAL: Estimate the EXACT spatial position of the code labels in this image:
+- gridTopPct: Y position (fraction 0.0-1.0 of image height) where the CENTER of the FIRST ROW of labels is
+- gridBottomPct: Y position where the CENTER of the LAST ROW of labels is
+- For each column, xPct: the X CENTER position (fraction 0.0-1.0 of image width) of that column's code labels
 
-Return ONLY a JSON object (no markdown):
+Look carefully at where each label physically sits in the image and report accurate fractions.
+
+Return ONLY a JSON object (no markdown, no explanation):
 {
-  "chart": "ko",
-  "gridTopPct": 0.08,
-  "gridBottomPct": 0.94,
+  "chart": "ae",
+  "gridTopPct": 0.12,
+  "gridBottomPct": 0.90,
   "columns": [
-    {"label": "K", "xPct": 0.08, "codes": ["G692","9138",...up to 20 codes, use "" for invisible ones]},
-    {"label": "L", "xPct": 0.25, "codes": ["G647","G845",...up to 20 codes]},
-    {"label": "M", "xPct": 0.46, "codes": ["G541","G940",...up to 20 codes]},
-    {"label": "N", "xPct": 0.65, "codes": ["G920","G552",...up to 20 codes]},
-    {"label": "O", "xPct": 0.84, "codes": ["G578","G668",...up to 20 codes]}
+    {"label": "A", "xPct": 0.10, "codes": ["G622","G661",...all 20 codes top to bottom]},
+    {"label": "B", "xPct": 0.28, "codes": [...]},
+    {"label": "C", "xPct": 0.46, "codes": [...]},
+    {"label": "D", "xPct": 0.64, "codes": [...]},
+    {"label": "E", "xPct": 0.82, "codes": [...]}
   ]
 }
 
-Use "fj" for F-J columns, "ko" for K-O columns. Estimate spatial positions accurately.`,
+Use "" for any code position that is not visible. Estimate xPct and gridTopPct/gridBottomPct as accurately as possible.`,
             },
             {
               type: "image_url",
@@ -79,10 +82,11 @@ Use "fj" for F-J columns, "ko" for K-O columns. Estimate spatial positions accur
           ],
         },
       ],
-      max_completion_tokens: 2000,
+      max_completion_tokens: 4000,
     });
 
     const content = response.choices[0]?.message?.content ?? "{}";
+    console.log("OCR raw response:", content.substring(0, 300));
 
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
@@ -106,8 +110,9 @@ Use "fj" for F-J columns, "ko" for K-O columns. Estimate spatial positions accur
 
     const codes = columns.flatMap(col => col.codes).filter(c => c.length > 0);
 
+    const validCharts = ["ae", "fj", "ko"];
     const result: OcrResult = {
-      chart: (parsed.chart === "fj" || parsed.chart === "ko") ? parsed.chart : "unknown",
+      chart: validCharts.includes(parsed.chart) ? parsed.chart as OcrResult["chart"] : "unknown",
       gridTopPct: typeof parsed.gridTopPct === "number" ? parsed.gridTopPct : 0.08,
       gridBottomPct: typeof parsed.gridBottomPct === "number" ? parsed.gridBottomPct : 0.94,
       columns,
