@@ -461,6 +461,7 @@ function renderDesign(
   }
 
   function drawThread(x1:number,y1:number,x2:number,y2:number,color:string) {
+    if (!ctx) return;
     const dx = x2-x1, dy = y2-y1;
     const len = Math.hypot(dx, dy);
     if (len < 0.3) return;

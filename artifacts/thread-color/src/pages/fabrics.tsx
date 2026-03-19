@@ -12,26 +12,7 @@ const API = "/api";
 
 /* ─── PRESET SOLID COLORS ────────────────────────────────────────── */
 const PRESET_COLORS = [
-  { name: "White",                    hex: "#F8F6F2" },
-  { name: "Black",                    hex: "#0D0D0D" },
-  { name: "Navy",                     hex: "#132246" },
-  { name: "Blue Blue (Classic Blue)", hex: "#0F4C81" },
-  { name: "Powder Blue",              hex: "#97C4D8" },
-  { name: "Omphalodes",               hex: "#6FA8C8" },
-  { name: "Aqua",                     hex: "#008C8C" },
-  { name: "Biscay Green",             hex: "#2E6B50" },
-  { name: "Evergreen",                hex: "#0D3B27" },
-  { name: "True Red",                 hex: "#C0151F" },
-  { name: "Fandango Pink",            hex: "#D63065" },
-  { name: "Orchid Pink",              hex: "#D4789A" },
-  { name: "Anemone",                  hex: "#6E2B8C" },
-  { name: "Purple",                   hex: "#5A1A8A" },
-  { name: "Perfectly Lale",           hex: "#9A7CB8" },
-  { name: "Pastel Lilac Sachet",      hex: "#CDBFDC" },
-  { name: "Desert Flower",            hex: "#E07060" },
-  { name: "Easter Yellow",            hex: "#F2D55A" },
-  { name: "Antarctica",               hex: "#D8E2E8" },
-  { name: "White Clover",             hex: "#ECEDE0" },
+  { name: "White", hex: "#FFFFFF" },
 ];
 
 function colorToDataUrl(hex: string, name: string): string {
