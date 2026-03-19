@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, CSSProperties } from "react";
 import { useLocation } from "wouter";
 import { useTheme, mkTheme } from "@/contexts/ThemeContext";
-import { createWorker } from "tesseract.js";
+const API = "/api";
 
 /* ─── DATA ─────────────────────────────────────────────────────── */
 const CHART_CONFIG = {
@@ -176,22 +176,37 @@ export default function Home() {
   const [ocrImg, setOcrImg] = useState<string | null>(null);
   const [ocrStatus, setOcrStatus] = useState<"idle" | "running" | "done" | "error">("idle");
   const [ocrProgress, setOcrProgress] = useState(0);
+  const [ocrFoundCount, setOcrFoundCount] = useState(0);
   const ocrFileRef = useRef<HTMLInputElement>(null);
 
   const handleOcrFile = useCallback(async (file: File) => {
-    const url = URL.createObjectURL(file);
-    setOcrImg(url);
+    const previewUrl = URL.createObjectURL(file);
+    setOcrImg(previewUrl);
     setOcrStatus("running");
     setOcrProgress(0);
     try {
-      const worker = await createWorker("eng", 1, {
-        logger: (m: { status: string; progress: number }) => {
-          if (m.status === "recognizing text") setOcrProgress(Math.round(m.progress * 100));
-        },
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
       });
-      const { data } = await worker.recognize(url);
-      await worker.terminate();
-      setScanText(prev => prev ? prev + "\n" + data.text : data.text);
+      setOcrProgress(40);
+      const res = await fetch(`${API}/ocr-image`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: base64, mimeType: file.type || "image/jpeg" }),
+      });
+      setOcrProgress(90);
+      if (!res.ok) throw new Error("API error");
+      const { codes } = await res.json() as { codes: string[] };
+      const codeText = codes.join(", ");
+      setScanText(prev => prev ? prev + "\n" + codeText : codeText);
+      setOcrFoundCount(codes.length);
+      setOcrProgress(100);
       setOcrStatus("done");
     } catch {
       setOcrStatus("error");
@@ -494,7 +509,7 @@ export default function Home() {
                       opacity: ocrStatus === "running" ? 0.7 : 1,
                     }}
                   >
-                    📷 {ocrStatus === "running" ? `Đang nhận diện... ${ocrProgress}%` : "Nhận diện từ ảnh"}
+                    ✨ {ocrStatus === "running" ? `AI đang đọc... ${ocrProgress}%` : "Nhận diện từ ảnh (AI)"}
                   </button>
                   {ocrImg && ocrStatus !== "running" && (
                     <button
@@ -512,7 +527,7 @@ export default function Home() {
 
                 {ocrStatus === "done" && (
                   <div style={{ marginTop: 8, fontSize: 12, color: "#15803d", fontWeight: 600 }}>
-                    ✅ Nhận diện xong — các mã được thêm vào bên dưới
+                    ✅ AI nhận diện được {ocrFoundCount} mã chỉ — đã thêm vào ô bên dưới
                   </div>
                 )}
                 {ocrStatus === "error" && (
@@ -540,7 +555,7 @@ export default function Home() {
               </div>
 
               <p style={{ margin: "0 0 10px", fontSize: 13, color: "#6b7280", lineHeight: 1.5 }}>
-                Hoặc dán danh sách mã chỉ vào đây (ví dụ: <span style={{ fontFamily: "monospace", background: "#f1f5f9", padding: "1px 6px", borderRadius: 4 }}>R=G721, P=G921, Y=5675</span>)
+                Hoặc dán danh sách mã chỉ vào đây (ví dụ: <span style={{ fontFamily: "monospace", background: "#f1f5f9", padding: "1px 6px", borderRadius: 4 }}>G721, G921, 5675</span>). App sẽ tìm và khoanh tất cả mã trên bảng.
               </p>
               <textarea
                 autoFocus
