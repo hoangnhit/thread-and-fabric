@@ -77,11 +77,19 @@ const SLOT_STYLES = [
 const SCAN_STYLE  = { border: "#f59e0b", anim: "pa" };
 const FOCUSED_SCAN_STYLE = { border: "#059669", anim: "pc" };
 
+function loadSavedOffsets(chartId: string): Record<string, { dx: number; dy: number }> {
+  try {
+    const raw = localStorage.getItem(`chart-offsets-${chartId}`);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
 function ChartImage({ chart, pins, focusedCode }: { chart: typeof CHARTS[0]; pins: { hit: Hit; slotStyle: typeof SLOT_STYLES[0] }[]; focusedCode?: string | null }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
-  const [offsets, setOffsets] = useState<Record<string, { dx: number; dy: number }>>({});
+  const [offsets, setOffsets] = useState<Record<string, { dx: number; dy: number }>>(() => loadSavedOffsets(chart.id));
   const [dragKey, setDragKey] = useState<string | null>(null);
+  const [locked, setLocked] = useState(true);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -96,12 +104,16 @@ function ChartImage({ chart, pins, focusedCode }: { chart: typeof CHARTS[0]; pin
     return () => ro.disconnect();
   }, []);
 
+  const saveOffsets = useCallback((newOffsets: Record<string, { dx: number; dy: number }>) => {
+    try { localStorage.setItem(`chart-offsets-${chart.id}`, JSON.stringify(newOffsets)); } catch {}
+  }, [chart.id]);
+
   const pinnedCodes = new Set(pins.map(p => p.hit.code));
   const isFocusedScan = (code: string) => focusedCode != null && code === focusedCode;
   const getPinStyle = (code: string) => pins.find(p => p.hit.code === code)?.slotStyle;
 
   const handlePointerMove = useCallback((clientX: number, clientY: number) => {
-    if (!dragKey || !wrapRef.current) return;
+    if (locked || !dragKey || !wrapRef.current) return;
     const rect = wrapRef.current.getBoundingClientRect();
     const xPct = (clientX - rect.left) / rect.width;
     const yPct = (clientY - rect.top) / rect.height;
@@ -112,18 +124,48 @@ function ChartImage({ chart, pins, focusedCode }: { chart: typeof CHARTS[0]; pin
     if (!col) return;
     const origX = col.xPct;
     const origY = rowYPct(chart.id, row);
-    setOffsets(prev => ({ ...prev, [dragKey]: { dx: xPct - origX, dy: yPct - origY } }));
-  }, [dragKey, chart]);
+    setOffsets(prev => {
+      const next = { ...prev, [dragKey]: { dx: xPct - origX, dy: yPct - origY } };
+      saveOffsets(next);
+      return next;
+    });
+  }, [locked, dragKey, chart, saveOffsets]);
 
   return (
     <div style={{ overflow: "hidden", position: "relative", borderRadius: 14 }}>
+      <div style={{ position: "absolute", top: 6, right: 6, zIndex: 200, display: "flex", gap: 4 }}>
+        <button
+          onClick={() => setLocked(l => !l)}
+          style={{
+            border: `1.5px solid ${locked ? "#d1d5db" : "#7c3aed"}`,
+            background: locked ? "rgba(255,255,255,0.9)" : "rgba(124,58,237,0.9)",
+            color: locked ? "#374151" : "#fff",
+            cursor: "pointer", fontSize: 10, fontWeight: 700,
+            padding: "3px 8px", borderRadius: 6,
+            backdropFilter: "blur(4px)",
+          }}
+        >{locked ? "Mở khoá" : "Khoá lại"}</button>
+        {!locked && Object.keys(offsets).length > 0 && (
+          <button
+            onClick={() => { setOffsets({}); saveOffsets({}); }}
+            style={{
+              border: "1.5px solid #fca5a5",
+              background: "rgba(255,255,255,0.9)",
+              color: "#dc2626",
+              cursor: "pointer", fontSize: 10, fontWeight: 700,
+              padding: "3px 8px", borderRadius: 6,
+              backdropFilter: "blur(4px)",
+            }}
+          >Reset</button>
+        )}
+      </div>
       <div
         ref={wrapRef}
-        style={{ position: "relative", cursor: dragKey ? "grabbing" : "default", userSelect: "none" }}
+        style={{ position: "relative", cursor: !locked && dragKey ? "grabbing" : "default", userSelect: "none" }}
         onMouseMove={e => handlePointerMove(e.clientX, e.clientY)}
         onMouseUp={() => setDragKey(null)}
         onMouseLeave={() => setDragKey(null)}
-        onTouchMove={e => { if (dragKey) { e.preventDefault(); handlePointerMove(e.touches[0].clientX, e.touches[0].clientY); } }}
+        onTouchMove={e => { if (!locked && dragKey) { e.preventDefault(); handlePointerMove(e.touches[0].clientX, e.touches[0].clientY); } }}
         onTouchEnd={() => setDragKey(null)}
       >
         <img
@@ -145,14 +187,14 @@ function ChartImage({ chart, pins, focusedCode }: { chart: typeof CHARTS[0]; pin
             const focused = isFocusedScan(code);
             const highlighted = pinnedCodes.has(code);
             const s = focused ? FOCUSED_SCAN_STYLE : (pinStyle ?? null);
-            const isDragging = dragKey === key;
+            const isDragging = !locked && dragKey === key;
             const badgeH = Math.max(14, (CHART_CONFIG[chart.id].rowH * 0.52 / CHART_CONFIG[chart.id].imageH) * size.h);
             const fontSize = Math.max(8, Math.min(12, badgeH * 0.62));
             return (
               <div
                 key={key}
-                onMouseDown={e => { e.preventDefault(); setDragKey(key); }}
-                onTouchStart={e => { e.preventDefault(); setDragKey(key); }}
+                onMouseDown={e => { if (!locked) { e.preventDefault(); setDragKey(key); } }}
+                onTouchStart={e => { if (!locked) { e.preventDefault(); setDragKey(key); } }}
                 style={{
                   position: "absolute",
                   left: cx,
@@ -164,7 +206,8 @@ function ChartImage({ chart, pins, focusedCode }: { chart: typeof CHARTS[0]; pin
                   fontWeight: highlighted || focused ? 800 : 700,
                   fontFamily: "monospace",
                   whiteSpace: "nowrap",
-                  cursor: isDragging ? "grabbing" : "grab",
+                  cursor: locked ? "default" : (isDragging ? "grabbing" : "grab"),
+                  pointerEvents: locked ? "none" : "auto",
                   zIndex: isDragging ? 100 : (highlighted || focused) ? 10 : 1,
                   lineHeight: 1,
                   background: isDragging
@@ -177,9 +220,11 @@ function ChartImage({ chart, pins, focusedCode }: { chart: typeof CHARTS[0]; pin
                   color: isDragging ? "#fff" : (highlighted || focused) ? "#fff" : "#111",
                   boxShadow: isDragging
                     ? "0 0 0 2px #7c3aed, 0 2px 8px rgba(124,58,237,0.4)"
-                    : (highlighted || focused)
-                      ? `0 0 0 1.5px ${s?.border ?? "#f59e0b"}, 0 2px 10px ${s?.border ?? "#f59e0b"}99`
-                      : "0 1px 3px rgba(0,0,0,0.25)",
+                    : !locked
+                      ? "0 0 0 1px #a78bfa, 0 1px 3px rgba(0,0,0,0.25)"
+                      : (highlighted || focused)
+                        ? `0 0 0 1.5px ${s?.border ?? "#f59e0b"}, 0 2px 10px ${s?.border ?? "#f59e0b"}99`
+                        : "0 1px 3px rgba(0,0,0,0.25)",
                   animation: isDragging ? "none" : s ? `${s.anim} 1.4s ease-in-out infinite` : "none",
                   transition: isDragging ? "none" : "box-shadow 0.15s",
                 }}
