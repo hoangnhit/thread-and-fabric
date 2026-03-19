@@ -4,39 +4,39 @@ import { useTheme, mkTheme } from "@/contexts/ThemeContext";
 
 /* ─── DATA ─────────────────────────────────────────────────────── */
 const CHART_CONFIG = {
-  ae: { imageW: 1158, imageH: 1280, topY: 35, rowH: 62, rotateDeg: 0, boxW: 78 },
-  pt: { imageW: 960,  imageH: 1280, topY: 215, rowH: 52, rotateDeg: 0, boxW: 65 },
+  fj: { imageW: 2694, imageH: 3006, topY: 220, rowH: 135 },
+  ko: { imageW: 2749, imageH: 3000, topY: 220, rowH: 135 },
 };
 
-function rowYPct(chartId: "ae" | "pt", i: number) {
+function rowYPct(chartId: "fj" | "ko", i: number) {
   const { topY, rowH, imageH } = CHART_CONFIG[chartId];
   return (topY + (i + 0.5) * rowH) / imageH;
 }
 
 const CHARTS = [
   {
-    id: "ae" as const, file: "/thread-chart-ae.jpg", label: "Bảng A – E",
+    id: "fj" as const, file: "/thread-chart-fj.jpg", label: "Bảng F – J",
     columns: [
-      { name: "A", xPct: 0.045, codes: ["G622","G661","G561","G666","G866","G861","G727","G735","G626","9003","5860","G683","G623","G924","G980","G724","G971","9001","G024","G624"] },
-      { name: "B", xPct: 0.240, codes: ["G826","G755","5695","G771","5766","G955","G172","5763","G951","G725","G772","G625","G869","G763","G765","G778","G965","G678","9072","G987"] },
-      { name: "C", xPct: 0.438, codes: ["G713","G818","G816","9030","G915","G815","G549","G819","5675","G948","G921","G548","G994","G721","G584","G990","G754","G734","G910","G993"] },
-      { name: "D", xPct: 0.638, codes: ["G653","G882","G853","G752","G820","G817","G620","G777","G616","G952","G521","G621","5767","G588","G779","G919","G917","G508","5732","G984"] },
-      { name: "E", xPct: 0.835, codes: ["G878","G509","G637","5566","G839","G838","G747","5629","00344","G681","G707","G986","G639","G786","G821","G781","G899","5634","G782","G783"] },
+      { name: "F", xPct: 0.069, codes: ["G529","G629","G911","G731","G630","G627","G712","G711","G831","G631","G834","G832","G880","G633","G680","G922","G709","G787","5800","G710"] },
+      { name: "G", xPct: 0.271, codes: ["G941","G998","G720","G785","G789","G788","G833","G719","G835","G635","5568","G982","5519","G638","G974","G981","G784","G567","G999","G887"] },
+      { name: "H", xPct: 0.501, codes: ["G532","G830","G933","G943","9031","G930","5728","G722","G553","G634","G632","5602","G326","G642","G842","5510","G676","G566","G766","G767"] },
+      { name: "I", xPct: 0.728, codes: ["G562","G531","G829","G934","5580","G843","G022","9171","G743","G966","5740","G967","G555","O0673","G976","G643","G944","G574","G844","5687"] },
+      { name: "J", xPct: 0.932, codes: ["G550","G953","G874","G674","G628","G675","G542","G871","G528","5733","G828","G960","G671","G775","G961","G776","G964","G963","G975","G764"] },
     ],
   },
   {
-    id: "pt" as const, file: "/thread-chart-pt.jpg", label: "Bảng P – T",
+    id: "ko" as const, file: "/thread-chart-ko.jpg", label: "Bảng K – O",
     columns: [
-      { name: "P", xPct: 0.078, codes: ["G554","G723","G927","5776","G060","G938","G660","G573","G656","G926","9132","G527","G855","G884","G556","9086","G885","G729","G854","G736"] },
-      { name: "Q", xPct: 0.255, codes: ["G526","G670","G870","G673","G538","G792","G791","G672","G726","G753","G773","G856","G898","G657","G973","G857","5788","G942","G658","G858"] },
-      { name: "R", xPct: 0.432, codes: ["G686","G949","G822","G582","G682","G863","G738","G860","G535","G862","G728","G928","G730","G906","G758","G565","G958","G945","G654","5551"] },
-      { name: "S", xPct: 0.609, codes: ["G592","G563","G687","G610","G810","G886","G811","G505","G718","G812","G611","5783","G545","O0939","G761","G613","G612","G212","G918","G572"] },
-      { name: "T", xPct: 0.781, codes: ["O0919","G575","G615","G502","G840","G614","G740","G618","G689","G539","G662","G936","G741","G664","G619","G640","G544","G841","G760","G540"] },
+      { name: "K", xPct: 0.069, codes: ["G692","9138","G594","G892","G932","G827","G893","9052","G694","G593","G895","G852","G977","G695","G577","G797","5801","G992","G896","G762"] },
+      { name: "L", xPct: 0.271, codes: ["G647","G845","9141","G645","G847","G746","G799","G888","G846","G685","G991","G890","9102","G652","G868","G989","G849","G751","G580","G780"] },
+      { name: "M", xPct: 0.501, codes: ["G541","G940","G748","G702","G900","G768","G648","G848","G968","G769","G770","G649","5620","G701","G749","G988","G650","G651","9091","O0555"] },
+      { name: "N", xPct: 0.728, codes: ["G920","G552","G809","G684","G939","G568","G956","G706","G759","G790","G793","G757","G569","G969","G796","G756","G794","G957","G795","G905"] },
+      { name: "O", xPct: 0.932, codes: ["G578","G668","G904","G879","G851","G979","G750","G703","G985","G970","G902","G903","G690","G704","G891","G677","G669","G996","G798","G705"] },
     ],
   },
 ];
 
-type Hit = { chartId: "ae" | "pt"; col: string; row: number; code: string };
+type Hit = { chartId: "fj" | "ko"; col: string; row: number; code: string };
 
 const ALL_CODES: Hit[] = CHARTS.flatMap(chart =>
   chart.columns.flatMap(col =>
@@ -69,11 +69,11 @@ type Mode = "single" | "compare" | "scan";
 
 /* ─── CHART IMAGE ──────────────────────────────────────────────── */
 const SLOT_STYLES = [
-  { fill: "rgba(251,191,36,0.4)", border: "#f59e0b", glow: "rgba(245,158,11,0.75)", anim: "pa" },
-  { fill: "rgba(56,189,248,0.35)", border: "#0ea5e9", glow: "rgba(14,165,233,0.65)", anim: "pb" },
+  { border: "#f59e0b", anim: "pa" },
+  { border: "#0ea5e9", anim: "pb" },
 ];
-const SCAN_STYLE = { fill: "rgba(251,191,36,0.4)", border: "#f59e0b", glow: "rgba(245,158,11,0.7)", anim: "pa" };
-const FOCUSED_SCAN_STYLE = { fill: "rgba(5,150,105,0.45)", border: "#059669", glow: "rgba(5,150,105,0.8)", anim: "pc" };
+const SCAN_STYLE  = { border: "#f59e0b", anim: "pa" };
+const FOCUSED_SCAN_STYLE = { border: "#059669", anim: "pc" };
 
 function ChartImage({ chart, pins, focusedCode }: { chart: typeof CHARTS[0]; pins: { hit: Hit; slotStyle: typeof SLOT_STYLES[0] }[]; focusedCode?: string | null }) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -92,42 +92,62 @@ function ChartImage({ chart, pins, focusedCode }: { chart: typeof CHARTS[0]; pin
     return () => ro.disconnect();
   }, []);
 
+  const pinnedCodes = new Set(pins.map(p => p.hit.code));
+  const isFocusedScan = (code: string) => focusedCode != null && code === focusedCode;
+  const getPinStyle = (code: string) => pins.find(p => p.hit.code === code)?.slotStyle;
+
   return (
     <div style={{ overflow: "hidden", position: "relative", borderRadius: 14 }}>
-      <div ref={wrapRef} style={{ position: "relative", transform: `rotate(${CHART_CONFIG[chart.id].rotateDeg}deg)`, transformOrigin: "center center" }}>
+      <div ref={wrapRef} style={{ position: "relative" }}>
         <img
-          src={chart.file} alt={chart.label}
+          src={`${import.meta.env.BASE_URL}${chart.file.replace(/^\//, "")}`} alt={chart.label}
           style={{ display: "block", width: "100%", userSelect: "none" }}
           onLoad={() => {
             const img = wrapRef.current?.querySelector("img");
             if (img) setSize({ w: img.offsetWidth, h: img.offsetHeight });
           }}
         />
-        {size.w > 0 && pins
-          .filter(p => p.hit.chartId === chart.id)
-          .map(({ hit, slotStyle }, idx) => {
-            const col = chart.columns.find(c => c.name === hit.col);
-            if (!col) return null;
-            const cfg = CHART_CONFIG[chart.id];
+        {size.w > 0 && chart.columns.flatMap(col =>
+          col.codes.map((code, row) => {
             const cx = col.xPct * size.w;
-            const cy = rowYPct(chart.id, hit.row) * size.h;
-            const bw = (cfg.boxW / cfg.imageW) * size.w;
-            const bh = (cfg.rowH * 0.85 / cfg.imageH) * size.h;
-            const isFocused = focusedCode != null && hit.code === focusedCode;
-            const s = isFocused ? FOCUSED_SCAN_STYLE : slotStyle;
+            const cy = rowYPct(chart.id, row) * size.h;
+            const pinStyle = getPinStyle(code);
+            const focused = isFocusedScan(code);
+            const highlighted = pinnedCodes.has(code);
+            const s = focused ? FOCUSED_SCAN_STYLE : (pinStyle ?? null);
+            const badgeH = Math.max(14, (CHART_CONFIG[chart.id].rowH * 0.52 / CHART_CONFIG[chart.id].imageH) * size.h);
+            const fontSize = Math.max(8, Math.min(12, badgeH * 0.62));
             return (
-              <div key={`pin-${idx}`} style={{
+              <div key={`badge-${col.name}-${row}`} style={{
                 position: "absolute",
-                left: cx - bw / 2, top: cy - bh / 2,
-                width: bw, height: bh, borderRadius: 6,
-                backgroundColor: s.fill,
-                boxShadow: `0 0 0 2.5px ${s.border}, 0 0 14px ${s.glow}`,
+                left: cx,
+                top: cy,
+                transform: "translate(-50%, -50%)",
+                padding: `${fontSize * 0.18}px ${fontSize * 0.55}px`,
+                borderRadius: 4,
+                fontSize,
+                fontWeight: highlighted || focused ? 800 : 700,
+                fontFamily: "monospace",
+                whiteSpace: "nowrap",
                 pointerEvents: "none",
-                animation: `${s.anim} 1.4s ease-in-out infinite`,
-                zIndex: isFocused ? 10 : 1,
-              }} />
+                zIndex: (highlighted || focused) ? 10 : 1,
+                lineHeight: 1,
+                background: focused
+                  ? "rgba(5,150,105,0.92)"
+                  : highlighted
+                    ? (s?.border === "#0ea5e9" ? "rgba(14,165,233,0.92)" : "rgba(245,158,11,0.95)")
+                    : "rgba(255,255,255,0.96)",
+                color: (highlighted || focused) ? "#fff" : "#111",
+                boxShadow: (highlighted || focused)
+                  ? `0 0 0 1.5px ${s?.border ?? "#f59e0b"}, 0 2px 10px ${s?.border ?? "#f59e0b"}99`
+                  : "0 1px 3px rgba(0,0,0,0.25)",
+                animation: s ? `${s.anim} 1.4s ease-in-out infinite` : "none",
+              }}>
+                {code}
+              </div>
             );
-          })}
+          })
+        )}
       </div>
     </div>
   );
@@ -342,7 +362,7 @@ export default function Home() {
                       <span style={{ fontSize: 20 }}>✅</span>
                       <div>
                         <div style={{ fontSize: 14, fontWeight: 700, color: "#92400e", fontFamily: "monospace" }}>{hit1.code}</div>
-                        <div style={{ fontSize: 12, color: "#78716c" }}>Cột <b>{hit1.col}</b> · Hàng <b>{hit1.row + 1}</b> · {hit1.chartId === "ae" ? "Bảng A–E" : "Bảng P–T"}</div>
+                        <div style={{ fontSize: 12, color: "#78716c" }}>Cột <b>{hit1.col}</b> · Hàng <b>{hit1.row + 1}</b> · {hit1.chartId === "fj" ? "Bảng F–J" : "Bảng K–O"}</div>
                       </div>
                     </div>
                   ) : (
