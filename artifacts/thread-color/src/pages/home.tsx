@@ -183,13 +183,15 @@ export default function Home() {
   const annotateImage = useCallback(async (
     imgUrl: string,
     chart: string,
-    columns: Array<{ label: string; codes: string[] }>
+    columns: Array<{ label: string; xPct?: number; codes: string[] }>,
+    gridTopPct: number,
+    gridBottomPct: number
   ): Promise<string> => {
-    const COL_X: Record<string, number[]> = {
+    const FALLBACK_X: Record<string, number[]> = {
       fj: [0.059, 0.236, 0.456, 0.653, 0.852],
       ko: [0.076, 0.250, 0.461, 0.654, 0.845],
     };
-    const xPcts = COL_X[chart] ?? COL_X.ko;
+    const fallbackXPcts = FALLBACK_X[chart] ?? FALLBACK_X.ko;
 
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const image = new Image();
@@ -207,8 +209,8 @@ export default function Home() {
     const W = canvas.width;
     const H = canvas.height;
     const fontSize = Math.max(18, Math.round(W * 0.025));
-    const TOP_PCT = 0.085;
-    const BOT_PCT = 0.935;
+    const TOP_PCT = gridTopPct;
+    const BOT_PCT = gridBottomPct;
     const ROW_COUNT = 20;
     const rowHPct = (BOT_PCT - TOP_PCT) / ROW_COUNT;
 
@@ -231,7 +233,7 @@ export default function Home() {
     ctx.textBaseline = "middle";
 
     columns.forEach((col, colIdx) => {
-      const xPct = xPcts[colIdx] ?? (colIdx * 0.2 + 0.05);
+      const xPct = typeof col.xPct === "number" ? col.xPct : (fallbackXPcts[colIdx] ?? (colIdx * 0.2 + 0.05));
       const cx = xPct * W;
       col.codes.forEach((code, rowIdx) => {
         if (!code || !code.trim()) return;
@@ -278,14 +280,14 @@ export default function Home() {
       });
       setOcrProgress(85);
       if (!res.ok) throw new Error("API error");
-      const data = await res.json() as { chart: string; columns: Array<{ label: string; codes: string[] }>; codes: string[] };
-      const { chart, columns, codes } = data;
+      const data = await res.json() as { chart: string; gridTopPct?: number; gridBottomPct?: number; columns: Array<{ label: string; xPct?: number; codes: string[] }>; codes: string[] };
+      const { chart, columns, codes, gridTopPct = 0.08, gridBottomPct = 0.94 } = data;
       const codeText = codes.join(", ");
       setScanText(prev => prev ? prev + "\n" + codeText : codeText);
       setOcrFoundCount(codes.length);
       if (columns && columns.length > 0) {
         setOcrProgress(92);
-        const annotated = await annotateImage(previewUrl, chart, columns);
+        const annotated = await annotateImage(previewUrl, chart, columns, gridTopPct, gridBottomPct);
         setOcrAnnotatedImg(annotated);
       }
       setOcrProgress(100);
