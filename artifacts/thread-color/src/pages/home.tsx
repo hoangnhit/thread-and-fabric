@@ -276,6 +276,7 @@ export default function Home() {
   const [sharedChartOffsets, setSharedChartOffsets] = useState<Record<string, OffsetMap>>({});
   const [chartSaving, setChartSaving] = useState<Record<string, boolean>>({});
   const saveOffsetTimersRef = useRef<Record<string, number>>({});
+  const latestOffsetsRef = useRef<Record<string, OffsetMap>>({});
   const isChartLocked = (id: string) => chartLocks[id] !== false;
   const isChartSaving = (id: string) => chartSaving[id] === true;
   const [scrolled, setScrolled] = useState(false);
@@ -341,6 +342,7 @@ export default function Home() {
   }, []);
 
   const pushChartOffsets = useCallback((chartId: string, offsets: OffsetMap, immediate = false) => {
+    latestOffsetsRef.current[chartId] = offsets;
     setSharedChartOffsets(prev => ({ ...prev, [chartId]: offsets }));
     setChartSaving(prev => ({ ...prev, [chartId]: true }));
     const oldTimer = saveOffsetTimersRef.current[chartId];
@@ -350,7 +352,8 @@ export default function Home() {
     }
 
     if (immediate) {
-      void persistChartOffsets(chartId, offsets)
+      const current = latestOffsetsRef.current[chartId] ?? offsets;
+      void persistChartOffsets(chartId, current)
         .catch(() => {})
         .finally(() => {
           setChartSaving(prev => ({ ...prev, [chartId]: false }));
@@ -360,7 +363,8 @@ export default function Home() {
 
     saveOffsetTimersRef.current[chartId] = window.setTimeout(async () => {
       try {
-        await persistChartOffsets(chartId, offsets);
+        const current = latestOffsetsRef.current[chartId] ?? offsets;
+        await persistChartOffsets(chartId, current);
       } catch {
       } finally {
         delete saveOffsetTimersRef.current[chartId];
@@ -373,7 +377,7 @@ export default function Home() {
     let disposed = false;
     const loadAll = async () => {
       const loaded = await Promise.all(CHARTS.map(async (chart) => {
-        if (saveOffsetTimersRef.current[chart.id]) {
+        if (saveOffsetTimersRef.current[chart.id] || chartSaving[chart.id]) {
           return { chartId: chart.id, offsets: null as OffsetMap | null };
         }
         if (!isChartLocked(chart.id)) return { chartId: chart.id, offsets: null as OffsetMap | null };
@@ -398,7 +402,7 @@ export default function Home() {
       window.clearInterval(intervalId);
       Object.values(saveOffsetTimersRef.current).forEach((timerId) => window.clearTimeout(timerId));
     };
-  }, [fetchChartOffsets, chartLocks]);
+  }, [fetchChartOffsets, chartLocks, chartSaving]);
 
   // OCR state
   const [ocrImg, setOcrImg] = useState<string | null>(null);
@@ -1098,7 +1102,7 @@ export default function Home() {
                       if (pass === "922003") setChartLocks(prev => ({ ...prev, [chart.id]: false }));
                       else if (pass !== null) alert("Sai mật khẩu!");
                     } else {
-                      pushChartOffsets(chart.id, sharedChartOffsets[chart.id] ?? {}, true);
+                      pushChartOffsets(chart.id, latestOffsetsRef.current[chart.id] ?? sharedChartOffsets[chart.id] ?? {}, true);
                       setChartLocks(prev => ({ ...prev, [chart.id]: true }));
                     }
                   }}
