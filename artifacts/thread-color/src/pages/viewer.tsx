@@ -14,6 +14,25 @@ interface ParsedDesign {
   label: string;
 }
 
+interface ViewerMemoryCache {
+  design: ParsedDesign | null;
+  editedColors: string[];
+  fileName: string;
+  fabric: "cloth" | "leather" | "fleece";
+  customBg: string;
+  useCustomBg: boolean;
+  spm: number;
+  animMaxIdx: number;
+  activeStep: number;
+  scale: number;
+  offset: { x: number; y: number };
+  selectedColorIdx: number;
+  threadHexInput: string;
+  customBgHexInput: string;
+}
+
+let viewerMemoryCache: ViewerMemoryCache | null = null;
+
 /* ─── PEC COLOR TABLE  (exact RGB from leomurca/embroidery-viewer) ── */
 const PEC_PALETTE: string[] = [
   "#000000","#0E1F7C","#0A55A3","#008777","#4B6BAF","#ED171F","#D15C00",
@@ -406,6 +425,8 @@ function renderDesign(
 ) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawFabricTexture(ctx, canvas.width, canvas.height, fabricType, customBg);
 
@@ -448,7 +469,7 @@ function renderDesign(
   //
   // lineWidth clamped [2, 9] px at canvas-pixel scale:
   //   scale × 5  gives ~0.5 mm thread — fills design area like real embroidery.
-  const lw = Math.max(2, Math.min(9, scale * 5));
+  const lw = Math.max(1.35, Math.min(6.8, scale * 3.9));
   ctx.lineWidth = lw;
   ctx.lineCap  = "round";
   ctx.lineJoin = "round";
@@ -466,22 +487,75 @@ function renderDesign(
     const len = Math.hypot(dx, dy);
     if (len < 0.3) return;
 
-    // Radial gradient from stitch MIDPOINT outward to just past stitch ends.
-    // r = len × 0.62 so at each round cap (distance len/2 from center)
-    // gradient position = 0.81 → interpolating between stop 0.55 and 1.0
-    // → cap color = tc(color, 0.73) — slightly darker than true, not black.
-    const mx = (x1+x2)*0.5, my = (y1+y2)*0.5;
-    const r  = len * 0.62;
-    const g  = ctx.createRadialGradient(mx, my, 0, mx, my, r);
-    g.addColorStop(0,    tc(color, 1.38)); // highlight at stitch center
-    g.addColorStop(0.55, color);           // true color
-    g.addColorStop(1,    tc(color, 0.70)); // shadow at stitch ends / caps
+    // Normal vector across thread thickness.
+    const nx = -dy / len;
+    const ny = dx / len;
+    const mx = (x1 + x2) * 0.5;
+    const my = (y1 + y2) * 0.5;
 
-    ctx.strokeStyle = g;
+    // Pass 1: under-shadow to separate neighboring stitches.
+    ctx.save();
+    ctx.strokeStyle = hexAlpha(tc(color, 0.58), 0.24);
+    ctx.lineWidth = lw * 1.18;
     ctx.beginPath();
     ctx.moveTo(x1, y1);
     ctx.lineTo(x2, y2);
     ctx.stroke();
+    ctx.restore();
+
+    // Pass 2: body gradient across thread width (darker edges, brighter center).
+    const body = ctx.createLinearGradient(
+      mx - nx * lw,
+      my - ny * lw,
+      mx + nx * lw,
+      my + ny * lw,
+    );
+    body.addColorStop(0, tc(color, 0.72));
+    body.addColorStop(0.22, tc(color, 0.9));
+    body.addColorStop(0.5, tc(color, 1.08));
+    body.addColorStop(0.78, tc(color, 0.9));
+    body.addColorStop(1, tc(color, 0.72));
+    ctx.strokeStyle = body;
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+
+    // Pass 3: satin sheen offset to one side for realistic glossy thread look.
+    const sheenShift = Math.min(lw * 0.28, 1.6);
+    const lx = mx + nx * sheenShift;
+    const ly = my + ny * sheenShift;
+    const sheen = ctx.createLinearGradient(
+      lx - nx * lw * 0.7,
+      ly - ny * lw * 0.7,
+      lx + nx * lw * 0.7,
+      ly + ny * lw * 0.7,
+    );
+    sheen.addColorStop(0, "rgba(255,255,255,0)");
+    sheen.addColorStop(0.35, hexAlpha(tc(color, 1.45), 0.08));
+    sheen.addColorStop(0.5, hexAlpha(tc(color, 1.75), 0.28));
+    sheen.addColorStop(0.65, hexAlpha(tc(color, 1.45), 0.08));
+    sheen.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.strokeStyle = sheen;
+    ctx.lineWidth = Math.max(0.7, lw * 0.5);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
+
+    // Pass 4: micro center fiber line to improve perceived sharpness.
+    ctx.save();
+    ctx.strokeStyle = hexAlpha(tc(color, 1.22), 0.24);
+    ctx.lineWidth = Math.max(0.55, lw * 0.15);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   // Render each color segment stitch-by-stitch
@@ -572,20 +646,23 @@ function FileIcon({ext,color}:{ext:string;color:string}) {
 /* ─── MAIN COMPONENT ─────────────────────────────────────────────── */
 export default function Viewer() {
   const [, navigate] = useLocation();
-  const [design, setDesign] = useState<ParsedDesign|null>(null);
-  const [editedColors, setEditedColors] = useState<string[]>([]);
-  const [fileName, setFileName] = useState("");
+  const [design, setDesign] = useState<ParsedDesign|null>(() => viewerMemoryCache?.design ?? null);
+  const [editedColors, setEditedColors] = useState<string[]>(() => viewerMemoryCache?.editedColors ?? []);
+  const [fileName, setFileName] = useState(() => viewerMemoryCache?.fileName ?? "");
   const [error, setError] = useState<string|null>(null);
   const [loading, setLoading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [fabric, setFabric] = useState<"cloth"|"leather"|"fleece">("cloth");
-  const [customBg, setCustomBg] = useState("#2a1a2a");
-  const [useCustomBg, setUseCustomBg] = useState(false);
-  const [spm, setSpm] = useState(650);
+  const [fabric, setFabric] = useState<"cloth"|"leather"|"fleece">(() => viewerMemoryCache?.fabric ?? "cloth");
+  const [customBg, setCustomBg] = useState(() => viewerMemoryCache?.customBg ?? "#2a1a2a");
+  const [customBgHexInput, setCustomBgHexInput] = useState(() => viewerMemoryCache?.customBgHexInput ?? "#2A1A2A");
+  const [useCustomBg, setUseCustomBg] = useState(() => viewerMemoryCache?.useCustomBg ?? false);
+  const [spm, setSpm] = useState(() => viewerMemoryCache?.spm ?? 650);
   const [showSpmMenu, setShowSpmMenu] = useState(false);
-  const [animMaxIdx, setAnimMaxIdx] = useState(Infinity);
+  const [animMaxIdx, setAnimMaxIdx] = useState(() => viewerMemoryCache?.animMaxIdx ?? Infinity);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [activeStep, setActiveStep] = useState<number>(-1);
+  const [activeStep, setActiveStep] = useState<number>(() => viewerMemoryCache?.activeStep ?? -1);
+  const [selectedColorIdx, setSelectedColorIdx] = useState(() => viewerMemoryCache?.selectedColorIdx ?? 0);
+  const [threadHexInput, setThreadHexInput] = useState(() => viewerMemoryCache?.threadHexInput ?? "#FFFFFF");
 
   // Compute the color-change sequence (mirrors renderDesign segment logic)
   const stitchSequence = useMemo(() => {
@@ -606,12 +683,22 @@ export default function Viewer() {
   }, [design]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const scaleRef = useRef(1);
-  const offsetRef = useRef({x:0,y:0});
+  const scaleRef = useRef(viewerMemoryCache?.scale ?? 1);
+  const offsetRef = useRef(viewerMemoryCache?.offset ?? {x:0,y:0});
   const dragStartRef = useRef<{x:number;y:number}|null>(null);
   const animFrameRef = useRef<number>(0);
   const animIdxRef = useRef(0);
-  const colorInputRefs = useRef<(HTMLInputElement|null)[]>([]);
+
+  const normalizeHex = useCallback((value: string): string | null => {
+    let raw = value.trim();
+    if (!raw) return null;
+    if (!raw.startsWith("#")) raw = `#${raw}`;
+    if (/^#[0-9a-fA-F]{3}$/.test(raw)) {
+      raw = `#${raw[1]}${raw[1]}${raw[2]}${raw[2]}${raw[3]}${raw[3]}`;
+    }
+    if (!/^#[0-9a-fA-F]{6}$/.test(raw)) return null;
+    return raw.toUpperCase();
+  }, []);
 
   const triggerRender = useCallback(() => {
     if (!design||!canvasRef.current) return;
@@ -624,11 +711,58 @@ export default function Viewer() {
   useEffect(() => { triggerRender(); }, [triggerRender]);
 
   useEffect(() => {
+    viewerMemoryCache = {
+      design,
+      editedColors,
+      fileName,
+      fabric,
+      customBg,
+      useCustomBg,
+      spm,
+      animMaxIdx,
+      activeStep,
+      scale: scaleRef.current,
+      offset: offsetRef.current,
+      selectedColorIdx,
+      threadHexInput,
+      customBgHexInput,
+    };
+  }, [
+    design,
+    editedColors,
+    fileName,
+    fabric,
+    customBg,
+    useCustomBg,
+    spm,
+    animMaxIdx,
+    activeStep,
+    selectedColorIdx,
+    threadHexInput,
+    customBgHexInput,
+  ]);
+
+  useEffect(() => {
+    setCustomBgHexInput(customBg.toUpperCase());
+  }, [customBg]);
+
+  useEffect(() => {
+    if (!design) return;
+    setSelectedColorIdx((prev) => Math.min(prev, Math.max(0, design.colorCount - 1)));
+  }, [design]);
+
+  useEffect(() => {
+    const hex = editedColors[selectedColorIdx];
+    if (hex) setThreadHexInput(hex.toUpperCase());
+  }, [editedColors, selectedColorIdx]);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const resize = () => {
-      canvas.width = canvas.clientWidth * devicePixelRatio;
-      canvas.height = canvas.clientHeight * devicePixelRatio;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.floor(canvas.clientWidth * dpr);
+      canvas.height = Math.floor(canvas.clientHeight * dpr);
       triggerRender();
     };
     resize();
@@ -754,6 +888,27 @@ export default function Viewer() {
     setEditedColors(prev=>{const n=[...prev];n[i]=color;return n;});
   };
 
+  const applyCustomBgHex = () => {
+    const normalized = normalizeHex(customBgHexInput);
+    if (!normalized) {
+      setCustomBgHexInput(customBg.toUpperCase());
+      return;
+    }
+    setCustomBg(normalized);
+    setUseCustomBg(true);
+  };
+
+  const applyThreadHex = () => {
+    const normalized = normalizeHex(threadHexInput);
+    if (!normalized) {
+      const fallback = (editedColors[selectedColorIdx] ?? "#FFFFFF").toUpperCase();
+      setThreadHexInput(fallback);
+      return;
+    }
+    updateColor(selectedColorIdx, normalized);
+    setThreadHexInput(normalized);
+  };
+
   const toMm = (units:number) => Math.round(units / 10);
   const timeMin = design ? Math.ceil(design.stitchCount/spm) : 0;
   const timeStr = timeMin>=60 ? `${Math.floor(timeMin/60)} h ${timeMin%60} min` : `${timeMin} min`;
@@ -803,14 +958,20 @@ export default function Viewer() {
               {f==="cloth"?"Vải":f==="leather"?"Da":"Nỉ"}
             </button>
           ))}
-          <label title="Màu nền tùy chỉnh" style={{position:"relative",cursor:"pointer"}}>
-            <div style={{width:24,height:24,borderRadius:20,border:"1.5px solid "+(useCustomBg?"#3b82f6":"#2a3050"),
-              background:useCustomBg?customBg:"linear-gradient(135deg,#f472b6,#818cf8)",cursor:"pointer"}}
-              onClick={()=>setUseCustomBg(true)}/>
-            <input type="color" value={customBg} onChange={e=>{setCustomBg(e.target.value);setUseCustomBg(true);}}
-              style={{position:"absolute",inset:0,opacity:0,width:"100%",height:"100%",cursor:"pointer"}}/>
-          </label>
-          <span style={{fontSize:10,color:"#4a5580",marginLeft:4}}>tùy chỉnh</span>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginLeft:2}}>
+            <button type="button" onClick={()=>setUseCustomBg(true)} title="Dùng màu nền HEX"
+              style={{width:24,height:24,borderRadius:20,border:"1.5px solid "+(useCustomBg?"#3b82f6":"#2a3050"),
+                background:useCustomBg?customBg:"linear-gradient(135deg,#f472b6,#818cf8)",cursor:"pointer"}} />
+            <input
+              value={customBgHexInput}
+              onChange={e=>setCustomBgHexInput(e.target.value)}
+              onBlur={applyCustomBgHex}
+              onKeyDown={e=>{ if (e.key === "Enter") applyCustomBgHex(); }}
+              placeholder="#RRGGBB"
+              style={{width:88,padding:"3px 7px",borderRadius:6,border:"1px solid #2a3050",background:"#10172a",color:"#c7d2fe",fontSize:10,fontFamily:"monospace"}}
+            />
+          </div>
+          <span style={{fontSize:10,color:"#4a5580"}}>HEX</span>
         </div>
       </header>
 
@@ -905,13 +1066,35 @@ export default function Viewer() {
                   <div style={{fontSize:12,fontWeight:700,color:"#e8e8f0",marginBottom:10}}>Edit Colors</div>
                   <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
                     {editedColors.slice(0,design.colorCount).map((c,i)=>(
-                      <label key={i} style={{position:"relative",cursor:"pointer"}} title={`Color ${i+1}: ${c}`}>
-                        <div style={{width:28,height:28,borderRadius:6,background:c,border:"2px solid rgba(255,255,255,0.15)",cursor:"pointer",boxShadow:"0 1px 4px rgba(0,0,0,0.4)"}}/>
-                        <input type="color" value={c} onChange={e=>updateColor(i,e.target.value)}
-                          ref={el=>{colorInputRefs.current[i]=el;}}
-                          style={{position:"absolute",inset:0,opacity:0,width:"100%",height:"100%",cursor:"pointer"}}/>
-                      </label>
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={()=>setSelectedColorIdx(i)}
+                        title={`Color ${i+1}: ${c}`}
+                        style={{
+                          width:28,height:28,borderRadius:6,background:c,cursor:"pointer",boxShadow:"0 1px 4px rgba(0,0,0,0.4)",
+                          border:i===selectedColorIdx?"2px solid #4A9EFF":"2px solid rgba(255,255,255,0.15)",
+                        }}
+                      />
                     ))}
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginTop:10}}>
+                    <span style={{fontSize:10,color:"#7d8ab0",fontWeight:700}}>#HEX</span>
+                    <input
+                      value={threadHexInput}
+                      onChange={e=>setThreadHexInput(e.target.value)}
+                      onBlur={applyThreadHex}
+                      onKeyDown={e=>{ if (e.key === "Enter") applyThreadHex(); }}
+                      placeholder="#RRGGBB"
+                      style={{flex:1,padding:"5px 8px",borderRadius:6,border:"1px solid #2a3050",background:"#10172a",color:"#e2e8f0",fontSize:11,fontFamily:"monospace"}}
+                    />
+                    <button
+                      type="button"
+                      onClick={applyThreadHex}
+                      style={{padding:"5px 9px",borderRadius:6,border:"1px solid #2a3050",background:"#1a2236",color:"#c7d2fe",fontSize:10,cursor:"pointer"}}
+                    >
+                      OK
+                    </button>
                   </div>
                   <button onClick={()=>setEditedColors([...design.palette])}
                     style={{marginTop:10,background:"none",border:"none",color:"#4A9EFF",fontSize:11,cursor:"pointer",padding:0}}>
