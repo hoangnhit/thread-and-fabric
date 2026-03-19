@@ -309,44 +309,65 @@ export default function Home() {
     }
   }, []);
 
-  const pushChartOffsets = useCallback((chartId: string, offsets: OffsetMap) => {
+  const persistChartOffsets = useCallback(async (chartId: string, offsets: OffsetMap) => {
+    if (supabase) {
+      const entries = Object.entries(offsets).map(([badgeKey, value]) => ({
+        chart_id: chartId,
+        badge_key: badgeKey,
+        dx: Number(value.dx),
+        dy: Number(value.dy),
+      }));
+
+      const delResp = await supabase.from("chart_offsets").delete().eq("chart_id", chartId);
+      if (delResp.error) {
+        throw delResp.error;
+      }
+      if (entries.length > 0) {
+        const insResp = await supabase.from("chart_offsets").insert(entries);
+        if (insResp.error) {
+          throw insResp.error;
+        }
+      }
+      return;
+    }
+
+    await fetch(`${API}/chart-offsets/${encodeURIComponent(chartId)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ offsets }),
+    });
+  }, []);
+
+  const pushChartOffsets = useCallback((chartId: string, offsets: OffsetMap, immediate = false) => {
     setSharedChartOffsets(prev => ({ ...prev, [chartId]: offsets }));
     const oldTimer = saveOffsetTimersRef.current[chartId];
-    if (oldTimer) window.clearTimeout(oldTimer);
+    if (oldTimer) {
+      window.clearTimeout(oldTimer);
+      delete saveOffsetTimersRef.current[chartId];
+    }
+
+    if (immediate) {
+      void persistChartOffsets(chartId, offsets).catch(() => {});
+      return;
+    }
+
     saveOffsetTimersRef.current[chartId] = window.setTimeout(async () => {
-      if (supabase) {
-        try {
-          const entries = Object.entries(offsets).map(([badgeKey, value]) => ({
-            chart_id: chartId,
-            badge_key: badgeKey,
-            dx: Number(value.dx),
-            dy: Number(value.dy),
-          }));
-
-          await supabase.from("chart_offsets").delete().eq("chart_id", chartId);
-          if (entries.length > 0) {
-            await supabase.from("chart_offsets").insert(entries);
-          }
-        } catch {
-        }
-        return;
-      }
-
       try {
-        await fetch(`${API}/chart-offsets/${encodeURIComponent(chartId)}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ offsets }),
-        });
+        await persistChartOffsets(chartId, offsets);
       } catch {
+      } finally {
+        delete saveOffsetTimersRef.current[chartId];
       }
     }, 350);
-  }, []);
+  }, [persistChartOffsets]);
 
   useEffect(() => {
     let disposed = false;
     const loadAll = async () => {
       const loaded = await Promise.all(CHARTS.map(async (chart) => {
+        if (saveOffsetTimersRef.current[chart.id]) {
+          return { chartId: chart.id, offsets: null as OffsetMap | null };
+        }
         if (!isChartLocked(chart.id)) return { chartId: chart.id, offsets: null as OffsetMap | null };
         const offsets = await fetchChartOffsets(chart.id);
         return { chartId: chart.id, offsets };
@@ -1066,6 +1087,7 @@ export default function Home() {
                       if (pass === "922003") setChartLocks(prev => ({ ...prev, [chart.id]: false }));
                       else if (pass !== null) alert("Sai mật khẩu!");
                     } else {
+                      pushChartOffsets(chart.id, sharedChartOffsets[chart.id] ?? {}, true);
                       setChartLocks(prev => ({ ...prev, [chart.id]: true }));
                     }
                   }}
