@@ -727,7 +727,7 @@ export default function Home() {
         }}>
 
           {/* ── NAV: tier-1 main sections ── */}
-          {!collapsed && (
+          {!scrolled && !collapsed && (
             <div style={{ marginBottom: 0 }}>
               {/* Tier 1 — three main tabs */}
               <div style={{ display: "flex", borderBottom: `1px solid ${t.border}`, marginBottom: 14, alignItems: "center" }}>
@@ -758,8 +758,69 @@ export default function Home() {
             </div>
           )}
 
+          {scrolled && (
+            <div style={{ marginBottom: 4 }}>
+              <div style={{
+                display: "flex", alignItems: "center", gap: 8,
+                background: t.inputBg,
+                border: `1.5px solid ${t.inputBorder}`,
+                borderRadius: 10,
+                padding: "8px 10px",
+                boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+              }}>
+                <span style={{ fontSize: 15 }}>🔎</span>
+                <input
+                  type="search"
+                  value={q1}
+                  onChange={e => { setMode("single"); setQ1(e.target.value); }}
+                  placeholder="Tìm nhanh mã chỉ..."
+                  style={{
+                    flex: 1,
+                    border: "none",
+                    outline: "none",
+                    fontSize: 14,
+                    color: t.text,
+                    background: "transparent",
+                    fontFamily: "monospace",
+                    fontWeight: 600,
+                  }}
+                />
+                {q1 && (
+                  <button
+                    onClick={() => setQ1("")}
+                    style={{
+                      border: "none",
+                      background: t.seg,
+                      color: t.text2,
+                      borderRadius: "50%",
+                      width: 20,
+                      height: 20,
+                      cursor: "pointer",
+                      fontSize: 11,
+                      padding: 0,
+                    }}
+                  >✕</button>
+                )}
+                {hit1 && (
+                  <span style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "#15803d",
+                    background: "#f0fdf4",
+                    border: "1px solid #86efac",
+                    borderRadius: 999,
+                    padding: "2px 8px",
+                    whiteSpace: "nowrap",
+                  }}>
+                    {hit1.code}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* ── GINGKO MODE CONTENT ── */}
-          {brand !== "dantuong" && (<>
+          {!scrolled && brand !== "dantuong" && (<>
 
           {/* ── SINGLE MODE ── */}
           {mode === "single" && (
