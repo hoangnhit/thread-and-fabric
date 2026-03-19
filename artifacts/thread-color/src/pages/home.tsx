@@ -80,8 +80,6 @@ const FOCUSED_SCAN_STYLE = { border: "#059669", anim: "pc" };
 function ChartImage({ chart, pins, focusedCode }: { chart: typeof CHARTS[0]; pins: { hit: Hit; slotStyle: typeof SLOT_STYLES[0] }[]; focusedCode?: string | null }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
-  const [offsets, setOffsets] = useState<Record<string, { dx: number; dy: number }>>({});
-  const [dragKey, setDragKey] = useState<string | null>(null);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -100,36 +98,12 @@ function ChartImage({ chart, pins, focusedCode }: { chart: typeof CHARTS[0]; pin
   const isFocusedScan = (code: string) => focusedCode != null && code === focusedCode;
   const getPinStyle = (code: string) => pins.find(p => p.hit.code === code)?.slotStyle;
 
-  const handlePointerMove = useCallback((clientX: number, clientY: number) => {
-    if (!dragKey || !wrapRef.current) return;
-    const rect = wrapRef.current.getBoundingClientRect();
-    const xPct = (clientX - rect.left) / rect.width;
-    const yPct = (clientY - rect.top) / rect.height;
-    const parts = dragKey.split("-");
-    const colName = parts[1];
-    const row = parseInt(parts[2]);
-    const col = chart.columns.find(c => c.name === colName);
-    if (!col) return;
-    const origX = col.xPct;
-    const origY = rowYPct(chart.id, row);
-    setOffsets(prev => ({ ...prev, [dragKey]: { dx: xPct - origX, dy: yPct - origY } }));
-  }, [dragKey, chart]);
-
   return (
     <div style={{ overflow: "hidden", position: "relative", borderRadius: 14 }}>
-      <div
-        ref={wrapRef}
-        style={{ position: "relative", cursor: dragKey ? "grabbing" : "default", userSelect: "none" }}
-        onMouseMove={e => handlePointerMove(e.clientX, e.clientY)}
-        onMouseUp={() => setDragKey(null)}
-        onMouseLeave={() => setDragKey(null)}
-        onTouchMove={e => { if (dragKey) { e.preventDefault(); handlePointerMove(e.touches[0].clientX, e.touches[0].clientY); } }}
-        onTouchEnd={() => setDragKey(null)}
-      >
+      <div ref={wrapRef} style={{ position: "relative" }}>
         <img
           src={`${import.meta.env.BASE_URL}${chart.file.replace(/^\//, "")}`} alt={chart.label}
-          style={{ display: "block", width: "100%", userSelect: "none", pointerEvents: "none" }}
-          draggable={false}
+          style={{ display: "block", width: "100%", userSelect: "none" }}
           onLoad={() => {
             const img = wrapRef.current?.querySelector("img");
             if (img) setSize({ w: img.offsetWidth, h: img.offsetHeight });
@@ -137,53 +111,40 @@ function ChartImage({ chart, pins, focusedCode }: { chart: typeof CHARTS[0]; pin
         />
         {size.w > 0 && chart.columns.flatMap(col =>
           col.codes.map((code, row) => {
-            const key = `badge-${col.name}-${row}`;
-            const off = offsets[key] ?? { dx: 0, dy: 0 };
-            const cx = (col.xPct + off.dx) * size.w;
-            const cy = (rowYPct(chart.id, row) + off.dy) * size.h;
+            const cx = col.xPct * size.w;
+            const cy = rowYPct(chart.id, row) * size.h;
             const pinStyle = getPinStyle(code);
             const focused = isFocusedScan(code);
             const highlighted = pinnedCodes.has(code);
             const s = focused ? FOCUSED_SCAN_STYLE : (pinStyle ?? null);
-            const isDragging = dragKey === key;
             const badgeH = Math.max(14, (CHART_CONFIG[chart.id].rowH * 0.52 / CHART_CONFIG[chart.id].imageH) * size.h);
             const fontSize = Math.max(8, Math.min(12, badgeH * 0.62));
             return (
-              <div
-                key={key}
-                onMouseDown={e => { e.preventDefault(); setDragKey(key); }}
-                onTouchStart={e => { e.preventDefault(); setDragKey(key); }}
-                style={{
-                  position: "absolute",
-                  left: cx,
-                  top: cy,
-                  transform: "translate(-50%, -50%)",
-                  padding: `${fontSize * 0.18}px ${fontSize * 0.55}px`,
-                  borderRadius: 4,
-                  fontSize,
-                  fontWeight: highlighted || focused ? 800 : 700,
-                  fontFamily: "monospace",
-                  whiteSpace: "nowrap",
-                  cursor: isDragging ? "grabbing" : "grab",
-                  zIndex: isDragging ? 100 : (highlighted || focused) ? 10 : 1,
-                  lineHeight: 1,
-                  background: isDragging
-                    ? "rgba(124,58,237,0.95)"
-                    : focused
-                      ? "rgba(5,150,105,0.92)"
-                      : highlighted
-                        ? (s?.border === "#0ea5e9" ? "rgba(14,165,233,0.92)" : "rgba(245,158,11,0.95)")
-                        : "rgba(255,255,255,0.96)",
-                  color: isDragging ? "#fff" : (highlighted || focused) ? "#fff" : "#111",
-                  boxShadow: isDragging
-                    ? "0 0 0 2px #7c3aed, 0 2px 8px rgba(124,58,237,0.4)"
-                    : (highlighted || focused)
-                      ? `0 0 0 1.5px ${s?.border ?? "#f59e0b"}, 0 2px 10px ${s?.border ?? "#f59e0b"}99`
-                      : "0 1px 3px rgba(0,0,0,0.25)",
-                  animation: isDragging ? "none" : s ? `${s.anim} 1.4s ease-in-out infinite` : "none",
-                  transition: isDragging ? "none" : "box-shadow 0.15s",
-                }}
-              >
+              <div key={`badge-${col.name}-${row}`} style={{
+                position: "absolute",
+                left: cx,
+                top: cy,
+                transform: "translate(-50%, -50%)",
+                padding: `${fontSize * 0.18}px ${fontSize * 0.55}px`,
+                borderRadius: 4,
+                fontSize,
+                fontWeight: highlighted || focused ? 800 : 700,
+                fontFamily: "monospace",
+                whiteSpace: "nowrap",
+                pointerEvents: "none",
+                zIndex: (highlighted || focused) ? 10 : 1,
+                lineHeight: 1,
+                background: focused
+                  ? "rgba(5,150,105,0.92)"
+                  : highlighted
+                    ? (s?.border === "#0ea5e9" ? "rgba(14,165,233,0.92)" : "rgba(245,158,11,0.95)")
+                    : "rgba(255,255,255,0.96)",
+                color: (highlighted || focused) ? "#fff" : "#111",
+                boxShadow: (highlighted || focused)
+                  ? `0 0 0 1.5px ${s?.border ?? "#f59e0b"}, 0 2px 10px ${s?.border ?? "#f59e0b"}99`
+                  : "0 1px 3px rgba(0,0,0,0.25)",
+                animation: s ? `${s.anim} 1.4s ease-in-out infinite` : "none",
+              }}>
                 {code}
               </div>
             );
