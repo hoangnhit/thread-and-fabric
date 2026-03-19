@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, CSSProperties } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, CSSProperties } from "react";
 import { useLocation } from "wouter";
 import { useTheme, mkTheme } from "@/contexts/ThemeContext";
 import { detectChart, drawDebugOverlay, type DetectionResult } from "@/utils/chartDetector";
@@ -283,6 +283,24 @@ export default function Home() {
   const { isDark } = useTheme();
   const t = mkTheme(isDark);
   const [, navigate] = useLocation();
+  const now = new Date();
+  const duongDate = useMemo(() => new Intl.DateTimeFormat("vi-VN", {
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(now), [now]);
+  const amDate = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat("vi-VN-u-ca-chinese", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }).format(now);
+    } catch {
+      return "Không hỗ trợ lịch âm";
+    }
+  }, [now]);
   const [brand, setBrand] = useState<"all" | "gingko" | "dantuong">("all");
   const [mode, setMode] = useState<Mode>("single");
   const [q1, setQ1] = useState("");
@@ -687,6 +705,33 @@ export default function Home() {
 
   return (
     <div ref={topRef} style={{ minHeight: "100vh", background: t.bg, fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif" }}>
+
+      {/* ── FLOATING DATE (SOLAR + LUNAR) ── */}
+      <div
+        style={{
+          position: "fixed",
+          top: 10,
+          left: 10,
+          zIndex: 220,
+          background: "rgba(255,255,255,0.92)",
+          border: "1.5px solid #cfd7e7",
+          borderRadius: 10,
+          padding: "7px 10px",
+          backdropFilter: "blur(4px)",
+          boxShadow: "0 3px 12px rgba(0,0,0,0.12)",
+          maxWidth: 290,
+        }}
+      >
+        <div style={{ fontSize: 10, fontWeight: 800, color: "#0f766e", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+          Hôm nay
+        </div>
+        <div style={{ marginTop: 2, fontSize: 12, fontWeight: 700, color: "#1f2937" }}>
+          Dương: {duongDate}
+        </div>
+        <div style={{ marginTop: 1, fontSize: 12, fontWeight: 700, color: "#7c3aed" }}>
+          Âm: {amDate}
+        </div>
+      </div>
 
       {/* ── HERO ── */}
       <div style={{
