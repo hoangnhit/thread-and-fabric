@@ -288,6 +288,7 @@ export default function Home() {
   const [q1, setQ1] = useState("");
   const [q2, setQ2] = useState("");
   const [scanText, setScanText] = useState("");
+  const [scanCompact, setScanCompact] = useState(true);
   const [foc1, setFoc1] = useState(false);
   const [foc2, setFoc2] = useState(false);
   const [focusedScan, setFocusedScan] = useState<Hit | null>(null);
@@ -912,6 +913,16 @@ export default function Home() {
                       }}
                     >{ocrShowDebug ? "🔍 Debug ON" : "🔍 Debug"}</button>
                   )}
+                  <button
+                    onClick={() => setScanCompact(v => !v)}
+                    style={{
+                      border: "1.5px solid #d1d5db",
+                      background: scanCompact ? "#f9fafb" : "#eef2ff",
+                      color: scanCompact ? "#6b7280" : "#4f46e5",
+                      cursor: "pointer", fontSize: 11, fontWeight: 700,
+                      padding: "4px 10px", borderRadius: 8,
+                    }}
+                  >{scanCompact ? "Mở rộng" : "Thu gọn"}</button>
                 </div>
 
                 {ocrStatus === "running" && (
@@ -941,7 +952,7 @@ export default function Home() {
                   </div>
                 )}
 
-                {ocrImg && (
+                {!scanCompact && ocrImg && (
                   <div
                     ref={ocrImgContainerRef}
                     style={{ marginTop: 8, position: "relative", display: "inline-block", borderRadius: 10, overflow: "hidden", border: `1.5px solid ${ocrAnnotatedImg ? "#7c3aed" : "#c4b5fd"}`, cursor: draggingIdx !== null ? "grabbing" : "default", userSelect: "none", width: "100%" }}
@@ -1018,18 +1029,19 @@ export default function Home() {
                 )}
               </div>
 
-              <p style={{ margin: "0 0 10px", fontSize: 13, color: "#6b7280", lineHeight: 1.5 }}>
-                Hoặc dán danh sách mã chỉ vào đây (ví dụ: <span style={{ fontFamily: "monospace", background: "#f1f5f9", padding: "1px 6px", borderRadius: 4 }}>G721, G921, 5675</span>). App sẽ tìm và khoanh tất cả mã trên bảng.
+              <p style={{ margin: "0 0 8px", fontSize: 12, color: "#6b7280", lineHeight: 1.45 }}>
+                Dán mã chỉ (ví dụ: <span style={{ fontFamily: "monospace", background: "#f1f5f9", padding: "1px 6px", borderRadius: 4 }}>G721, G921, 5675</span>) để khoanh nhanh.
               </p>
               <textarea
                 autoFocus
                 value={scanText}
                 onChange={e => setScanText(e.target.value)}
                 placeholder={"Ví dụ:\nR=G721, P=G921, Y=5675\nC=G915, C=9030, B=G826"}
-                rows={4}
+                rows={scanCompact ? 2 : 4}
                 style={{
-                  width: "100%", border: `2px solid ${t.inputBorder}`, borderRadius: 12, padding: "12px 14px",
-                  fontSize: 14, fontFamily: "monospace", color: t.text, resize: "vertical",
+                  width: "100%", border: `2px solid ${t.inputBorder}`, borderRadius: 12, padding: scanCompact ? "8px 10px" : "12px 14px",
+                  fontSize: scanCompact ? 13 : 14, fontFamily: "monospace", color: t.text, resize: "vertical",
+                  minHeight: scanCompact ? 72 : 120,
                   outline: "none", boxSizing: "border-box", lineHeight: 1.6,
                   background: t.inputBg, transition: "border 0.2s",
                 }}
