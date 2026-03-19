@@ -5,19 +5,34 @@ import { detectChart, drawDebugOverlay, type DetectionResult } from "@/utils/cha
 const API = "/api";
 
 /* ─── DATA ─────────────────────────────────────────────────────── */
-const CHART_CONFIG = {
+type ChartId = "ae" | "fj" | "ko" | "pt" | "uy";
+
+const CHART_CONFIG: Record<ChartId, { imageW: number; imageH: number; topY: number; rowH: number }> = {
+  ae: { imageW: 2780, imageH: 2939, topY: 165, rowH: 130 },
   fj: { imageW: 2694, imageH: 3006, topY: 200, rowH: 140 },
   ko: { imageW: 2749, imageH: 3000, topY: 200, rowH: 140 },
+  pt: { imageW: 2747, imageH: 2954, topY: 165, rowH: 130 },
+  uy: { imageW: 2712, imageH: 3037, topY: 155, rowH: 125 },
 };
 
-function rowYPct(chartId: "fj" | "ko", i: number) {
+function rowYPct(chartId: ChartId, i: number) {
   const { topY, rowH, imageH } = CHART_CONFIG[chartId];
   return (topY + (i + 0.5) * rowH) / imageH;
 }
 
-const CHARTS = [
+const CHARTS: { id: ChartId; file: string; label: string; columns: { name: string; xPct: number; codes: string[] }[] }[] = [
   {
-    id: "fj" as const, file: "/thread-chart-fj.jpg", label: "Bảng F – J",
+    id: "ae", file: "/thread-chart-ae.jpg", label: "Bảng A – E",
+    columns: [
+      { name: "A", xPct: 0.045, codes: ["G622","G661","G561","G666","G866","G861","G727","G735","G626","9003","5860","G683","G623","G924","G980","G724","G971","9001","G024","G624"] },
+      { name: "B", xPct: 0.230, codes: ["G826","G755","5695","G771","5766","G955","G172","5763","G951","G725","G772","G625","G869","G763","G765","G778","G965","G678","9072","G987"] },
+      { name: "C", xPct: 0.435, codes: ["G713","G818","G816","9030","G915","G815","G549","G819","5675","G948","G921","G548","G994","G721","G584","G990","G754","G734","G910","G993"] },
+      { name: "D", xPct: 0.640, codes: ["G653","G882","G853","G752","G820","G817","G620","G777","G616","G952","G521","G621","5767","G588","G779","G919","G917","G508","5732","G984"] },
+      { name: "E", xPct: 0.845, codes: ["G878","G509","G637","5566","G839","G838","G747","5629","00344","G681","G707","G986","G639","G786","G821","G781","G899","5634","G782","G783"] },
+    ],
+  },
+  {
+    id: "fj", file: "/thread-chart-fj.jpg", label: "Bảng F – J",
     columns: [
       { name: "F", xPct: 0.059, codes: ["G529","G629","G911","G731","G630","G627","G712","G711","G831","G631","G834","G832","G880","G633","G680","G922","G709","G787","5800","G710"] },
       { name: "G", xPct: 0.236, codes: ["G941","G998","G720","G785","G789","G788","G833","G719","G835","G635","5568","G982","5519","G638","G974","G981","G784","G567","G999","G887"] },
@@ -27,7 +42,7 @@ const CHARTS = [
     ],
   },
   {
-    id: "ko" as const, file: "/thread-chart-ko.jpg", label: "Bảng K – O",
+    id: "ko", file: "/thread-chart-ko.jpg", label: "Bảng K – O",
     columns: [
       { name: "K", xPct: 0.076, codes: ["G692","9138","G594","G892","G932","G827","G893","9052","G694","G593","G895","G852","G977","G695","G577","G797","5801","G992","G896","G762"] },
       { name: "L", xPct: 0.250, codes: ["G647","G845","9141","G645","G847","G746","G799","G888","G846","G685","G991","G890","9102","G652","G868","G989","G849","G751","G580","G780"] },
@@ -36,9 +51,29 @@ const CHARTS = [
       { name: "O", xPct: 0.845, codes: ["G578","G668","G904","G879","G851","G979","G750","G703","G985","G970","G902","G903","G690","G704","G891","G677","G669","G996","G798","G705"] },
     ],
   },
+  {
+    id: "pt", file: "/thread-chart-pt.jpg", label: "Bảng P – T",
+    columns: [
+      { name: "P", xPct: 0.050, codes: ["G554","G723","G927","5776","G060","G938","G660","G573","G656","G926","9132","G527","G855","G884","G556","9086","G885","G729","G854","G736"] },
+      { name: "Q", xPct: 0.235, codes: ["G526","G670","G870","G673","G538","G792","G791","G672","G726","G753","G773","G856","G898","G657","G973","G857","5788","G942","G658","G858"] },
+      { name: "R", xPct: 0.440, codes: ["G686","G949","G822","G582","G682","G863","G738","G860","G535","G862","G728","G928","G730","G906","G758","G565","G958","G945","G654","5551"] },
+      { name: "S", xPct: 0.645, codes: ["G592","G563","G687","G610","G810","G886","G811","G505","G718","G812","G611","5783","G545","00939","G761","G613","G612","G212","G918","G572"] },
+      { name: "T", xPct: 0.845, codes: ["00919","G575","G615","G502","G840","G614","G740","G618","G689","G539","G662","G936","G741","G664","G619","G640","G544","G841","G760","G540"] },
+    ],
+  },
+  {
+    id: "uy", file: "/thread-chart-uy.jpg", label: "Bảng U – Y",
+    columns: [
+      { name: "U", xPct: 0.050, codes: ["G745","G663","G744","G929","G872","G659","G507","G641","G558","G559","G557","G859","G617","G997","G931","G560","G739","G564","G506","G589","G665"] },
+      { name: "V", xPct: 0.195, codes: ["G803","G804","G801","G802","G805","G836","58954","G800","5596","601","602","603","604","605"] },
+      { name: "W", xPct: 0.385, codes: ["G597","G909","G595","G908","G907","G954","G978","G946","G824","G925","G825","G923","G937","G972","G867","G883","5713","G599","G950","G850"] },
+      { name: "X", xPct: 0.590, codes: ["701","702","703","704","705","706","707","708","709","710","711","GM801","GM802","GM803"] },
+      { name: "Y", xPct: 0.810, codes: ["GM804","GM805","GM806","GM807","GM808","GM809","GM810","GM811","GM812"] },
+    ],
+  },
 ];
 
-type Hit = { chartId: "fj" | "ko"; col: string; row: number; code: string };
+type Hit = { chartId: ChartId; col: string; row: number; code: string };
 
 const ALL_CODES: Hit[] = CHARTS.flatMap(chart =>
   chart.columns.flatMap(col =>
@@ -54,7 +89,7 @@ function findCode(query: string): Hit | null {
 
 /** Extract potential thread codes from freeform text */
 function extractCodes(text: string): string[] {
-  const tokens = text.match(/[GOgo]?\d{3,4}|[GOgo]\d{3}/g) ?? [];
+  const tokens = text.match(/GM\d{3}|[GOgo]?\d{3,5}|[GOgo]\d{3}/gi) ?? [];
   const seen = new Set<string>();
   const result: string[] = [];
   for (const t of tokens) {
