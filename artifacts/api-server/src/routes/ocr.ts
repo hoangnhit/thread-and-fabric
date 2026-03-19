@@ -82,8 +82,12 @@ Read EVERY code carefully. Each column must have exactly 20 codes.`,
     }
 
     const parsed = JSON.parse(jsonMatch[0]) as { chart: string; columns: OcrColumn[] };
-    const columns: OcrColumn[] = parsed.columns ?? [];
-    const codes = columns.flatMap(col => col.codes);
+    const rawColumns: OcrColumn[] = parsed.columns ?? [];
+    const columns: OcrColumn[] = rawColumns.map(col => ({
+      label: col.label,
+      codes: col.codes.map(c => (typeof c === "string" ? c.trim() : "")),
+    }));
+    const codes = columns.flatMap(col => col.codes).filter(c => c.length > 0);
 
     const result: OcrResult = {
       chart: (parsed.chart === "fj" || parsed.chart === "ko") ? parsed.chart : "unknown",

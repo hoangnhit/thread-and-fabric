@@ -234,6 +234,7 @@ export default function Home() {
       const xPct = xPcts[colIdx] ?? (colIdx * 0.2 + 0.05);
       const cx = xPct * W;
       col.codes.forEach((code, rowIdx) => {
+        if (!code || !code.trim()) return;
         const cy = (TOP_PCT + (rowIdx + 0.5) * rowHPct) * H;
         const tw = ctx.measureText(code).width;
         const pad = fontSize * 0.35;
