@@ -715,7 +715,7 @@ export default function Home() {
         paddingTop: scrolled ? 8 : 0,
         transition: "background 0.2s, padding 0.2s",
       }}>
-      <div style={{ maxWidth: 640, margin: scrolled ? "0 auto" : "-28px auto 0", padding: "0 16px", position: "relative", zIndex: 10, transition: "margin 0.2s" }}>
+      <div style={{ maxWidth: 1140, margin: scrolled ? "0 auto" : "-28px auto 0", padding: "0 16px", position: "relative", zIndex: 10, transition: "margin 0.2s" }}>
         <div style={{
           background: t.card,
           borderRadius: scrolled ? "0 0 20px 20px" : 20,
@@ -1118,7 +1118,7 @@ export default function Home() {
       )}
 
       {/* ── CHARTS ── */}
-      {brand !== "dantuong" && <main style={{ maxWidth: 640, margin: "0 auto", padding: "24px 16px 40px" }}>
+      {brand !== "dantuong" && <main style={{ maxWidth: 1140, margin: "0 auto", padding: "24px 16px 40px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(500px, 100%), 1fr))", gap: 24 }}>
         {CHARTS.map((chart) => {
           const chartPins = pins.filter(p => p.hit.chartId === chart.id);
           const isActive = chartPins.length > 0;
@@ -1127,7 +1127,7 @@ export default function Home() {
             <div
               key={chart.id}
               ref={el => { chartRefs.current[chart.id] = el; }}
-              style={{ marginBottom: 28 }}
+              style={{ minWidth: 0 }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                 <div style={{ width: 3, height: 18, borderRadius: 2, background: isActive ? "#059669" : isDark ? "#1a3a2a" : "#d1fae5" }} />
