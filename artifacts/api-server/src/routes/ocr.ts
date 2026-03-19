@@ -8,16 +8,19 @@ const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
 });
 
+export interface OcrCodeEntry {
+  code: string;
+  xPct: number;
+  yPct: number;
+}
+
 export interface OcrColumn {
   label: string;
-  xPct: number;
-  codes: string[];
+  entries: OcrCodeEntry[];
 }
 
 export interface OcrResult {
-  chart: "ae" | "fj" | "ko" | "unknown";
-  gridTopPct: number;
-  gridBottomPct: number;
+  chart: string;
   columns: OcrColumn[];
   codes: string[];
 }
@@ -38,39 +41,16 @@ router.post("/ocr-image", async (req, res) => {
           content: [
             {
               type: "text",
-              text: `You are analyzing a GINGKO embroidery thread color chart image. Extract ALL thread color codes visible.
+              text: `Analyze this GINGKO embroidery thread color chart photo. Extract ALL thread codes and their EXACT pixel positions as fractions of image size.
 
-Thread codes look like: G followed by digits (G532, G629), digits only (5860, 9030), or starting with 00 (00344, 00555).
+Codes look like: G622, 5860, 9030, 00344. Chart has 5 vertical columns (A-E or F-J or K-O), ~20 rows each.
 
-The chart has 5 vertical columns with letter headers. Identify which chart type:
-- "ae" chart: columns A, B, C, D, E
-- "fj" chart: columns F, G, H, I, J
-- "ko" chart: columns K, L, M, N, O
+For each code: report its center position as xPct (0=left, 1=right) and yPct (0=top, 1=bottom). Be PRECISE - each code must align with the color swatch on its SAME row.
 
-Each column has up to 20 color swatches with a code label, arranged top to bottom.
+Return ONLY valid JSON, no markdown backticks:
+{"chart":"ae","columns":[{"label":"A","entries":[{"code":"G622","xPct":0.05,"yPct":0.09},...]},{"label":"B","entries":[...]},{"label":"C","entries":[...]},{"label":"D","entries":[...]},{"label":"E","entries":[...]}]}
 
-CRITICAL: Estimate the EXACT spatial position of the code labels in this image:
-- gridTopPct: Y position (fraction 0.0-1.0 of image height) where the CENTER of the FIRST ROW of labels is
-- gridBottomPct: Y position where the CENTER of the LAST ROW of labels is
-- For each column, xPct: the X CENTER position (fraction 0.0-1.0 of image width) of that column's code labels
-
-Look carefully at where each label physically sits in the image and report accurate fractions.
-
-Return ONLY a JSON object (no markdown, no explanation):
-{
-  "chart": "ae",
-  "gridTopPct": 0.12,
-  "gridBottomPct": 0.90,
-  "columns": [
-    {"label": "A", "xPct": 0.10, "codes": ["G622","G661",...all 20 codes top to bottom]},
-    {"label": "B", "xPct": 0.28, "codes": [...]},
-    {"label": "C", "xPct": 0.46, "codes": [...]},
-    {"label": "D", "xPct": 0.64, "codes": [...]},
-    {"label": "E", "xPct": 0.82, "codes": [...]}
-  ]
-}
-
-Use "" for any code position that is not visible. Estimate xPct and gridTopPct/gridBottomPct as accurately as possible.`,
+Use "ae" for A-E, "fj" for F-J, "ko" for K-O.`,
             },
             {
               type: "image_url",
@@ -82,39 +62,45 @@ Use "" for any code position that is not visible. Estimate xPct and gridTopPct/g
           ],
         },
       ],
-      max_completion_tokens: 4000,
+      max_completion_tokens: 16384,
     });
 
-    const content = response.choices[0]?.message?.content ?? "{}";
-    console.log("OCR raw response:", content.substring(0, 300));
+    const content = response.choices[0]?.message?.content ?? "";
+    if (!content || content.trim().length === 0) {
+      res.json({ chart: "unknown", columns: [], codes: [] } as OcrResult);
+      return;
+    }
 
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      res.json({ chart: "unknown", gridTopPct: 0.08, gridBottomPct: 0.94, columns: [], codes: [] } as OcrResult);
+      res.json({ chart: "unknown", columns: [], codes: [] } as OcrResult);
       return;
     }
 
     const parsed = JSON.parse(jsonMatch[0]) as {
       chart: string;
-      gridTopPct?: number;
-      gridBottomPct?: number;
-      columns: Array<{ label: string; xPct?: number; codes: string[] }>;
+      columns: Array<{
+        label: string;
+        entries: Array<{ code: string; xPct?: number; yPct?: number }>;
+      }>;
     };
 
     const rawColumns = parsed.columns ?? [];
     const columns: OcrColumn[] = rawColumns.map(col => ({
       label: col.label,
-      xPct: typeof col.xPct === "number" ? col.xPct : 0.1,
-      codes: col.codes.map(c => (typeof c === "string" ? c.trim() : "")),
+      entries: (col.entries ?? [])
+        .filter(e => e.code && typeof e.code === "string" && e.code.trim().length > 0)
+        .map(e => ({
+          code: e.code.trim(),
+          xPct: typeof e.xPct === "number" ? e.xPct : 0.1,
+          yPct: typeof e.yPct === "number" ? e.yPct : 0.1,
+        })),
     }));
 
-    const codes = columns.flatMap(col => col.codes).filter(c => c.length > 0);
+    const codes = columns.flatMap(col => col.entries.map(e => e.code));
 
-    const validCharts = ["ae", "fj", "ko"];
     const result: OcrResult = {
-      chart: validCharts.includes(parsed.chart) ? parsed.chart as OcrResult["chart"] : "unknown",
-      gridTopPct: typeof parsed.gridTopPct === "number" ? parsed.gridTopPct : 0.08,
-      gridBottomPct: typeof parsed.gridBottomPct === "number" ? parsed.gridBottomPct : 0.94,
+      chart: parsed.chart ?? "unknown",
       columns,
       codes,
     };
@@ -122,7 +108,7 @@ Use "" for any code position that is not visible. Estimate xPct and gridTopPct/g
     res.json(result);
   } catch (err) {
     console.error("OCR error:", err);
-    res.status(500).json({ error: "Failed to analyze image", codes: [], columns: [], chart: "unknown", gridTopPct: 0.08, gridBottomPct: 0.94 });
+    res.status(500).json({ error: "Failed to analyze image", codes: [], columns: [], chart: "unknown" });
   }
 });
 
