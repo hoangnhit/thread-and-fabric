@@ -174,14 +174,89 @@ export default function Home() {
 
   // OCR state
   const [ocrImg, setOcrImg] = useState<string | null>(null);
+  const [ocrAnnotatedImg, setOcrAnnotatedImg] = useState<string | null>(null);
   const [ocrStatus, setOcrStatus] = useState<"idle" | "running" | "done" | "error">("idle");
   const [ocrProgress, setOcrProgress] = useState(0);
   const [ocrFoundCount, setOcrFoundCount] = useState(0);
   const ocrFileRef = useRef<HTMLInputElement>(null);
 
+  const annotateImage = useCallback(async (
+    imgUrl: string,
+    chart: string,
+    columns: Array<{ label: string; codes: string[] }>
+  ): Promise<string> => {
+    const COL_X: Record<string, number[]> = {
+      fj: [0.059, 0.236, 0.456, 0.653, 0.852],
+      ko: [0.076, 0.250, 0.461, 0.654, 0.845],
+    };
+    const xPcts = COL_X[chart] ?? COL_X.ko;
+
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = imgUrl;
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(img, 0, 0);
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const fontSize = Math.max(18, Math.round(W * 0.025));
+    const TOP_PCT = 0.085;
+    const BOT_PCT = 0.935;
+    const ROW_COUNT = 20;
+    const rowHPct = (BOT_PCT - TOP_PCT) / ROW_COUNT;
+
+    const drawRoundRect = (x: number, y: number, w: number, h: number, r: number) => {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    };
+
+    ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    columns.forEach((col, colIdx) => {
+      const xPct = xPcts[colIdx] ?? (colIdx * 0.2 + 0.05);
+      const cx = xPct * W;
+      col.codes.forEach((code, rowIdx) => {
+        const cy = (TOP_PCT + (rowIdx + 0.5) * rowHPct) * H;
+        const tw = ctx.measureText(code).width;
+        const pad = fontSize * 0.35;
+        const rw = tw + pad * 2;
+        const rh = fontSize + pad * 1.4;
+        const rx = cx - rw / 2;
+        const ry = cy - rh / 2;
+        const radius = rh * 0.32;
+        ctx.fillStyle = "rgba(255,255,255,0.90)";
+        drawRoundRect(rx, ry, rw, rh, radius);
+        ctx.fill();
+        ctx.fillStyle = "#111111";
+        ctx.fillText(code, cx, cy);
+      });
+    });
+
+    return canvas.toDataURL("image/jpeg", 0.92);
+  }, []);
+
   const handleOcrFile = useCallback(async (file: File) => {
     const previewUrl = URL.createObjectURL(file);
     setOcrImg(previewUrl);
+    setOcrAnnotatedImg(null);
     setOcrStatus("running");
     setOcrProgress(0);
     try {
@@ -200,18 +275,24 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageBase64: base64, mimeType: file.type || "image/jpeg" }),
       });
-      setOcrProgress(90);
+      setOcrProgress(85);
       if (!res.ok) throw new Error("API error");
-      const { codes } = await res.json() as { codes: string[] };
+      const data = await res.json() as { chart: string; columns: Array<{ label: string; codes: string[] }>; codes: string[] };
+      const { chart, columns, codes } = data;
       const codeText = codes.join(", ");
       setScanText(prev => prev ? prev + "\n" + codeText : codeText);
       setOcrFoundCount(codes.length);
+      if (columns && columns.length > 0) {
+        setOcrProgress(92);
+        const annotated = await annotateImage(previewUrl, chart, columns);
+        setOcrAnnotatedImg(annotated);
+      }
       setOcrProgress(100);
       setOcrStatus("done");
     } catch {
       setOcrStatus("error");
     }
-  }, []);
+  }, [annotateImage]);
 
   useEffect(() => {
     const el = document.querySelector(".page-scroll-root") ?? window;
@@ -269,7 +350,7 @@ export default function Home() {
   const switchMode = useCallback((m: Mode) => {
     setMode(m);
     setQ1(""); setQ2(""); setScanText(""); setFocusedScan(null);
-    setOcrImg(null); setOcrStatus("idle"); setOcrProgress(0);
+    setOcrImg(null); setOcrAnnotatedImg(null); setOcrStatus("idle"); setOcrProgress(0); setOcrFoundCount(0);
   }, []);
 
   /* main tab style */
@@ -513,7 +594,7 @@ export default function Home() {
                   </button>
                   {ocrImg && ocrStatus !== "running" && (
                     <button
-                      onClick={() => { setOcrImg(null); setOcrStatus("idle"); setOcrProgress(0); }}
+                      onClick={() => { setOcrImg(null); setOcrAnnotatedImg(null); setOcrStatus("idle"); setOcrProgress(0); setOcrFoundCount(0); }}
                       style={{ border: "none", background: "transparent", color: "#9ca3af", cursor: "pointer", fontSize: 12, padding: "4px 6px", borderRadius: 6 }}
                     >✕ Xoá ảnh</button>
                   )}
@@ -537,17 +618,22 @@ export default function Home() {
                 )}
 
                 {ocrImg && (
-                  <div style={{ marginTop: 8, position: "relative", display: "inline-block", borderRadius: 10, overflow: "hidden", border: "1.5px solid #c4b5fd" }}>
+                  <div style={{ marginTop: 8, position: "relative", display: "block", borderRadius: 10, overflow: "hidden", border: `1.5px solid ${ocrAnnotatedImg ? "#7c3aed" : "#c4b5fd"}` }}>
                     <img
-                      src={ocrImg}
-                      alt="OCR source"
-                      style={{ display: "block", maxWidth: "100%", maxHeight: 180, objectFit: "contain" }}
+                      src={ocrAnnotatedImg ?? ocrImg}
+                      alt={ocrAnnotatedImg ? "Ảnh đã nhận diện mã" : "OCR source"}
+                      style={{ display: "block", width: "100%", maxHeight: ocrAnnotatedImg ? 420 : 200, objectFit: "contain" }}
                     />
                     {ocrStatus === "running" && (
                       <div style={{ position: "absolute", inset: 0, background: "rgba(109,40,217,0.22)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <span style={{ background: "rgba(109,40,217,0.85)", color: "white", borderRadius: 8, padding: "4px 12px", fontSize: 13, fontWeight: 700 }}>
                           {ocrProgress}%
                         </span>
+                      </div>
+                    )}
+                    {ocrAnnotatedImg && (
+                      <div style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(109,40,217,0.85)", color: "white", borderRadius: 6, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>
+                        ✓ Đã gán mã
                       </div>
                     )}
                   </div>
