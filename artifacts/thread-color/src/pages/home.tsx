@@ -292,11 +292,17 @@ export default function Home() {
   }).format(now), [now]);
   const amDate = useMemo(() => {
     try {
-      return new Intl.DateTimeFormat("vi-VN-u-ca-chinese", {
+      const raw = new Intl.DateTimeFormat("vi-VN-u-ca-chinese", {
         day: "numeric",
         month: "long",
         year: "numeric",
       }).format(now);
+      return raw
+        .replace("ngày ", "")
+        .replace("tháng ", "T")
+        .replace("năm ", "")
+        .replace(/\s+/g, " ")
+        .trim();
     } catch {
       return "Không hỗ trợ lịch âm";
     }
@@ -710,26 +716,27 @@ export default function Home() {
       <div
         style={{
           position: "fixed",
-          top: 10,
-          left: 10,
+          top: 12,
+          left: 12,
           zIndex: 220,
-          background: "rgba(255,255,255,0.92)",
-          border: "1.5px solid #cfd7e7",
-          borderRadius: 10,
+          background: "linear-gradient(135deg, rgba(15,23,42,0.84), rgba(17,94,89,0.72))",
+          border: "1px solid rgba(255,255,255,0.22)",
+          borderRadius: 12,
           padding: "7px 10px",
-          backdropFilter: "blur(4px)",
-          boxShadow: "0 3px 12px rgba(0,0,0,0.12)",
-          maxWidth: 290,
+          backdropFilter: "blur(8px)",
+          boxShadow: "0 6px 16px rgba(0,0,0,0.25)",
+          maxWidth: 275,
+          pointerEvents: "none",
         }}
       >
-        <div style={{ fontSize: 10, fontWeight: 800, color: "#0f766e", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-          Hôm nay
+        <div style={{ fontSize: 10, fontWeight: 700, color: "#99f6e4", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+          Lịch hôm nay
         </div>
-        <div style={{ marginTop: 2, fontSize: 12, fontWeight: 700, color: "#1f2937" }}>
-          Dương: {duongDate}
+        <div style={{ marginTop: 3, fontSize: 13, fontWeight: 700, color: "#f8fafc", textTransform: "capitalize" }}>
+          {duongDate}
         </div>
-        <div style={{ marginTop: 1, fontSize: 12, fontWeight: 700, color: "#7c3aed" }}>
-          Âm: {amDate}
+        <div style={{ marginTop: 2, fontSize: 12, fontWeight: 700, color: "#ddd6fe" }}>
+          Âm lịch: {amDate}
         </div>
       </div>
 
