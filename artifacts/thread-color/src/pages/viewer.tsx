@@ -417,6 +417,50 @@ function hexAlpha(hex: string, a: number): string {
   return `rgba(${(n>>16)&0xff},${(n>>8)&0xff},${n&0xff},${a})`;
 }
 
+function hexToHsv(hex: string): { h: number; s: number; v: number } {
+  const n = parseInt(hex.replace("#", "").padEnd(6, "0").slice(0, 6), 16);
+  const r = ((n >> 16) & 0xff) / 255;
+  const g = ((n >> 8) & 0xff) / 255;
+  const b = (n & 0xff) / 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  const v = max;
+  const s = max === 0 ? 0 : d / max;
+  let h = 0;
+
+  if (d !== 0) {
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+
+  return { h: Math.round(h), s, v };
+}
+
+function hsvToHex(h: number, s: number, v: number): string {
+  const c = v * s;
+  const hh = h / 60;
+  const x = c * (1 - Math.abs((hh % 2) - 1));
+  let r = 0;
+  let g = 0;
+  let b = 0;
+
+  if (hh >= 0 && hh < 1) { r = c; g = x; }
+  else if (hh >= 1 && hh < 2) { r = x; g = c; }
+  else if (hh >= 2 && hh < 3) { g = c; b = x; }
+  else if (hh >= 3 && hh < 4) { g = x; b = c; }
+  else if (hh >= 4 && hh < 5) { r = x; b = c; }
+  else { r = c; b = x; }
+
+  const m = v - c;
+  const toHex = (v: number) => Math.round((v + m) * 255).toString(16).padStart(2, "0");
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
+}
+
 /* ─── CANVAS RENDERER ───────────────────────────────────────────── */
 function renderDesign(
   canvas: HTMLCanvasElement, design: ParsedDesign, colors: string[],
@@ -663,6 +707,9 @@ export default function Viewer() {
   const [activeStep, setActiveStep] = useState<number>(() => viewerMemoryCache?.activeStep ?? -1);
   const [selectedColorIdx, setSelectedColorIdx] = useState(() => viewerMemoryCache?.selectedColorIdx ?? 0);
   const [threadHexInput, setThreadHexInput] = useState(() => viewerMemoryCache?.threadHexInput ?? "#FFFFFF");
+  const [threadHue, setThreadHue] = useState(0);
+  const [threadSat, setThreadSat] = useState(1);
+  const [threadVal, setThreadVal] = useState(1);
 
   // Compute the color-change sequence (mirrors renderDesign segment logic)
   const stitchSequence = useMemo(() => {
@@ -683,6 +730,7 @@ export default function Viewer() {
   }, [design]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const colorPanelRef = useRef<HTMLDivElement>(null);
   const scaleRef = useRef(viewerMemoryCache?.scale ?? 1);
   const offsetRef = useRef(viewerMemoryCache?.offset ?? {x:0,y:0});
   const dragStartRef = useRef<{x:number;y:number}|null>(null);
@@ -753,7 +801,14 @@ export default function Viewer() {
 
   useEffect(() => {
     const hex = editedColors[selectedColorIdx];
-    if (hex) setThreadHexInput(hex.toUpperCase());
+    if (hex) {
+      const normalized = hex.toUpperCase();
+      setThreadHexInput(normalized);
+      const hsv = hexToHsv(normalized);
+      setThreadHue(hsv.h);
+      setThreadSat(hsv.s);
+      setThreadVal(hsv.v);
+    }
   }, [editedColors, selectedColorIdx]);
 
   useEffect(() => {
@@ -903,10 +958,46 @@ export default function Viewer() {
     if (!normalized) {
       const fallback = (editedColors[selectedColorIdx] ?? "#FFFFFF").toUpperCase();
       setThreadHexInput(fallback);
+      const hsv = hexToHsv(fallback);
+      setThreadHue(hsv.h);
+      setThreadSat(hsv.s);
+      setThreadVal(hsv.v);
       return;
     }
     updateColor(selectedColorIdx, normalized);
     setThreadHexInput(normalized);
+    const hsv = hexToHsv(normalized);
+    setThreadHue(hsv.h);
+    setThreadSat(hsv.s);
+    setThreadVal(hsv.v);
+  };
+
+  const onHueSliderChange = (nextHue: number) => {
+    setThreadHue(nextHue);
+    const nextHex = hsvToHex(nextHue, threadSat, threadVal);
+    setThreadHexInput(nextHex);
+    updateColor(selectedColorIdx, nextHex);
+  };
+
+  const onColorSliderChange = (nextSat: number) => {
+    setThreadSat(nextSat);
+    const nextHex = hsvToHex(threadHue, nextSat, threadVal);
+    setThreadHexInput(nextHex);
+    updateColor(selectedColorIdx, nextHex);
+  };
+
+  const onColorPanelPick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const panel = colorPanelRef.current;
+    if (!panel) return;
+    const rect = panel.getBoundingClientRect();
+    const clamp = (v: number) => Math.max(0, Math.min(1, v));
+    const sat = clamp((e.clientX - rect.left) / rect.width);
+    const val = clamp(1 - (e.clientY - rect.top) / rect.height);
+    setThreadSat(sat);
+    setThreadVal(val);
+    const nextHex = hsvToHex(threadHue, sat, val);
+    setThreadHexInput(nextHex);
+    updateColor(selectedColorIdx, nextHex);
   };
 
   const toMm = (units:number) => Math.round(units / 10);
@@ -1078,7 +1169,83 @@ export default function Viewer() {
                       />
                     ))}
                   </div>
-                  <div style={{display:"flex",alignItems:"center",gap:6,marginTop:10}}>
+                  <div
+                    ref={colorPanelRef}
+                    onMouseDown={onColorPanelPick}
+                    onMouseMove={e => { if (e.buttons === 1) onColorPanelPick(e); }}
+                    style={{
+                      marginTop:10,
+                      width:"100%",
+                      height:140,
+                      borderRadius:8,
+                      border:"1px solid #2a3050",
+                      position:"relative",
+                      cursor:"crosshair",
+                      backgroundColor:`hsl(${threadHue} 100% 50%)`,
+                      backgroundImage:"linear-gradient(to right,#fff,rgba(255,255,255,0)),linear-gradient(to top,#000,rgba(0,0,0,0))",
+                    }}
+                  >
+                    <div style={{
+                      position:"absolute",
+                      left:`${threadSat * 100}%`,
+                      top:`${(1 - threadVal) * 100}%`,
+                      width:14,
+                      height:14,
+                      borderRadius:"50%",
+                      border:"2px solid #fff",
+                      boxShadow:"0 0 0 1px rgba(0,0,0,0.55)",
+                      transform:"translate(-50%,-50%)",
+                      pointerEvents:"none",
+                    }} />
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginTop:8}}>
+                    <span style={{fontSize:10,color:"#7d8ab0",fontWeight:700,minWidth:30}}>HUE</span>
+                    <div style={{width:16,height:16,borderRadius:4,border:"1px solid #2a3050",background:hsvToHex(threadHue, 1, 1)}} />
+                    <input
+                      type="range"
+                      min={0}
+                      max={360}
+                      step={1}
+                      value={threadHue}
+                      onChange={e => onHueSliderChange(Number(e.target.value))}
+                      style={{
+                        flex:1,
+                        height:8,
+                        borderRadius:999,
+                        WebkitAppearance:"none",
+                        appearance:"none",
+                        border:"1px solid #2a3050",
+                        backgroundImage:"linear-gradient(90deg,#FF0000 0%,#FFFF00 17%,#00FF00 33%,#00FFFF 50%,#0000FF 67%,#FF00FF 83%,#FF0000 100%)",
+                        cursor:"pointer",
+                      }}
+                    />
+                    <span style={{fontSize:10,color:"#8ea0cf",fontFamily:"monospace",minWidth:32,textAlign:"right"}}>{threadHue}°</span>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginTop:8}}>
+                    <span style={{fontSize:10,color:"#7d8ab0",fontWeight:700,minWidth:42}}>COLOR</span>
+                    <div style={{width:16,height:16,borderRadius:4,border:"1px solid #2a3050",background:normalizeHex(threadHexInput) ?? "#FFFFFF"}} />
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={Math.round(threadSat * 100)}
+                      onChange={e => onColorSliderChange(Number(e.target.value) / 100)}
+                      style={{
+                        flex:1,
+                        height:8,
+                        borderRadius:999,
+                        WebkitAppearance:"none",
+                        appearance:"none",
+                        border:"1px solid #2a3050",
+                        backgroundImage:`linear-gradient(90deg,${hsvToHex(threadHue, 0, threadVal)} 0%,${hsvToHex(threadHue, 1, threadVal)} 100%)`,
+                        cursor:"pointer",
+                      }}
+                    />
+                    <span style={{fontSize:10,color:"#8ea0cf",fontFamily:"monospace",minWidth:26,textAlign:"right"}}>{Math.round(threadSat * 100)}%</span>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginTop:8}}>
+                    <div style={{width:24,height:24,borderRadius:6,border:"1px solid #2a3050",background:normalizeHex(threadHexInput) ?? "#FFFFFF"}} />
                     <span style={{fontSize:10,color:"#7d8ab0",fontWeight:700}}>#HEX</span>
                     <input
                       value={threadHexInput}

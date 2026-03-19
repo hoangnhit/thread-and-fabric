@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, CSSProperties } from "react";
 import { useLocation } from "wouter";
 import { useTheme, mkTheme } from "@/contexts/ThemeContext";
 import { detectChart, drawDebugOverlay, type DetectionResult } from "@/utils/chartDetector";
-const API = "/api";
+const API = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") || "/api";
 
 /* ─── DATA ─────────────────────────────────────────────────────── */
 type ChartId = "ae" | "fj" | "ko" | "pt" | "uy";
@@ -111,26 +111,33 @@ const SLOT_STYLES = [
 ];
 const SCAN_STYLE  = { border: "#f59e0b", anim: "pa" };
 const FOCUSED_SCAN_STYLE = { border: "#059669", anim: "pc" };
+type OffsetMap = Record<string, { dx: number; dy: number }>;
 
-function loadSavedOffsets(chartId: string): Record<string, { dx: number; dy: number }> {
-  try {
-    const raw = localStorage.getItem(`chart-offsets-${chartId}`);
-    return raw ? JSON.parse(raw) : {};
-  } catch { return {}; }
-}
-
-function ChartImage({ chart, pins, focusedCode, locked, resetSignal }: { chart: typeof CHARTS[0]; pins: { hit: Hit; slotStyle: typeof SLOT_STYLES[0] }[]; focusedCode?: string | null; locked: boolean; resetSignal: number }) {
+function ChartImage({ chart, pins, focusedCode, locked, resetSignal, sharedOffsets, onOffsetsChange }: {
+  chart: typeof CHARTS[0];
+  pins: { hit: Hit; slotStyle: typeof SLOT_STYLES[0] }[];
+  focusedCode?: string | null;
+  locked: boolean;
+  resetSignal: number;
+  sharedOffsets: OffsetMap;
+  onOffsetsChange: (offsets: OffsetMap) => void;
+}) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
-  const [offsets, setOffsets] = useState<Record<string, { dx: number; dy: number }>>(() => loadSavedOffsets(chart.id));
+  const [offsets, setOffsets] = useState<OffsetMap>(sharedOffsets);
   const [dragKey, setDragKey] = useState<string | null>(null);
 
   useEffect(() => {
+    setOffsets(sharedOffsets);
+  }, [sharedOffsets]);
+
+  useEffect(() => {
     if (resetSignal > 0) {
-      setOffsets({});
-      try { localStorage.removeItem(`chart-offsets-${chart.id}`); } catch {}
+      const cleared: OffsetMap = {};
+      setOffsets(cleared);
+      onOffsetsChange(cleared);
     }
-  }, [resetSignal, chart.id]);
+  }, [resetSignal, onOffsetsChange]);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -144,10 +151,6 @@ function ChartImage({ chart, pins, focusedCode, locked, resetSignal }: { chart: 
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-
-  const saveOffsets = useCallback((newOffsets: Record<string, { dx: number; dy: number }>) => {
-    try { localStorage.setItem(`chart-offsets-${chart.id}`, JSON.stringify(newOffsets)); } catch {}
-  }, [chart.id]);
 
   const pinnedCodes = new Set(pins.map(p => p.hit.code));
   const isFocusedScan = (code: string) => focusedCode != null && code === focusedCode;
@@ -167,10 +170,10 @@ function ChartImage({ chart, pins, focusedCode, locked, resetSignal }: { chart: 
     const origY = rowYPct(chart.id, row);
     setOffsets(prev => {
       const next = { ...prev, [dragKey]: { dx: xPct - origX, dy: yPct - origY } };
-      saveOffsets(next);
+      onOffsetsChange(next);
       return next;
     });
-  }, [locked, dragKey, chart, saveOffsets]);
+  }, [locked, dragKey, chart, onOffsetsChange]);
 
   return (
     <div style={{ overflow: "hidden", position: "relative", borderRadius: 14 }}>
@@ -269,11 +272,68 @@ export default function Home() {
   const [focusedScan, setFocusedScan] = useState<Hit | null>(null);
   const [chartLocks, setChartLocks] = useState<Record<string, boolean>>({});
   const [chartResets, setChartResets] = useState<Record<string, number>>({});
+  const [sharedChartOffsets, setSharedChartOffsets] = useState<Record<string, OffsetMap>>({});
+  const saveOffsetTimersRef = useRef<Record<string, number>>({});
   const isChartLocked = (id: string) => chartLocks[id] !== false;
   const [scrolled, setScrolled] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const chartRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const topRef = useRef<HTMLDivElement>(null);
+
+  const fetchChartOffsets = useCallback(async (chartId: string): Promise<OffsetMap> => {
+    try {
+      const res = await fetch(`${API}/chart-offsets/${encodeURIComponent(chartId)}`);
+      if (!res.ok) return {};
+      const data = await res.json() as { offsets?: OffsetMap };
+      return data.offsets ?? {};
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const pushChartOffsets = useCallback((chartId: string, offsets: OffsetMap) => {
+    setSharedChartOffsets(prev => ({ ...prev, [chartId]: offsets }));
+    const oldTimer = saveOffsetTimersRef.current[chartId];
+    if (oldTimer) window.clearTimeout(oldTimer);
+    saveOffsetTimersRef.current[chartId] = window.setTimeout(async () => {
+      try {
+        await fetch(`${API}/chart-offsets/${encodeURIComponent(chartId)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ offsets }),
+        });
+      } catch {
+      }
+    }, 350);
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    const loadAll = async () => {
+      const loaded = await Promise.all(CHARTS.map(async (chart) => {
+        if (!isChartLocked(chart.id)) return { chartId: chart.id, offsets: null as OffsetMap | null };
+        const offsets = await fetchChartOffsets(chart.id);
+        return { chartId: chart.id, offsets };
+      }));
+      if (disposed) return;
+      setSharedChartOffsets(prev => {
+        const next = { ...prev };
+        for (const item of loaded) {
+          if (item.offsets) next[item.chartId] = item.offsets;
+        }
+        return next;
+      });
+    };
+
+    loadAll();
+    const intervalId = window.setInterval(loadAll, 5000);
+
+    return () => {
+      disposed = true;
+      window.clearInterval(intervalId);
+      Object.values(saveOffsetTimersRef.current).forEach((timerId) => window.clearTimeout(timerId));
+    };
+  }, [fetchChartOffsets, chartLocks]);
 
   // OCR state
   const [ocrImg, setOcrImg] = useState<string | null>(null);
@@ -1005,7 +1065,15 @@ export default function Home() {
                 transition: "all 0.35s cubic-bezier(0.4,0,0.2,1)",
                 background: t.card,
               }}>
-                <ChartImage chart={chart} pins={chartPins} focusedCode={mode === "scan" ? focusedScan?.code ?? null : null} locked={isChartLocked(chart.id)} resetSignal={chartResets[chart.id] || 0} />
+                <ChartImage
+                  chart={chart}
+                  pins={chartPins}
+                  focusedCode={mode === "scan" ? focusedScan?.code ?? null : null}
+                  locked={isChartLocked(chart.id)}
+                  resetSignal={chartResets[chart.id] || 0}
+                  sharedOffsets={sharedChartOffsets[chart.id] ?? {}}
+                  onOffsetsChange={(offsets) => pushChartOffsets(chart.id, offsets)}
+                />
               </div>
             </div>
           );
