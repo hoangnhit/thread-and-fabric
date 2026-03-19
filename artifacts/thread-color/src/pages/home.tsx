@@ -119,12 +119,18 @@ function loadSavedOffsets(chartId: string): Record<string, { dx: number; dy: num
   } catch { return {}; }
 }
 
-function ChartImage({ chart, pins, focusedCode }: { chart: typeof CHARTS[0]; pins: { hit: Hit; slotStyle: typeof SLOT_STYLES[0] }[]; focusedCode?: string | null }) {
+function ChartImage({ chart, pins, focusedCode, locked, resetSignal }: { chart: typeof CHARTS[0]; pins: { hit: Hit; slotStyle: typeof SLOT_STYLES[0] }[]; focusedCode?: string | null; locked: boolean; resetSignal: number }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [offsets, setOffsets] = useState<Record<string, { dx: number; dy: number }>>(() => loadSavedOffsets(chart.id));
   const [dragKey, setDragKey] = useState<string | null>(null);
-  const [locked, setLocked] = useState(true);
+
+  useEffect(() => {
+    if (resetSignal > 0) {
+      setOffsets({});
+      try { localStorage.removeItem(`chart-offsets-${chart.id}`); } catch {}
+    }
+  }, [resetSignal, chart.id]);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -168,40 +174,6 @@ function ChartImage({ chart, pins, focusedCode }: { chart: typeof CHARTS[0]; pin
 
   return (
     <div style={{ overflow: "hidden", position: "relative", borderRadius: 14 }}>
-      <div style={{ position: "absolute", top: 6, right: 6, zIndex: 200, display: "flex", gap: 4 }}>
-        <button
-          onClick={() => {
-            if (locked) {
-              const pass = prompt("Nhập mật khẩu để mở khoá:");
-              if (pass === "922003") setLocked(false);
-              else if (pass !== null) alert("Sai mật khẩu!");
-            } else {
-              setLocked(true);
-            }
-          }}
-          style={{
-            border: `1.5px solid ${locked ? "#d1d5db" : "#7c3aed"}`,
-            background: locked ? "rgba(255,255,255,0.9)" : "rgba(124,58,237,0.9)",
-            color: locked ? "#374151" : "#fff",
-            cursor: "pointer", fontSize: 10, fontWeight: 700,
-            padding: "3px 8px", borderRadius: 6,
-            backdropFilter: "blur(4px)",
-          }}
-        >{locked ? "Mở khoá" : "Khoá lại"}</button>
-        {!locked && Object.keys(offsets).length > 0 && (
-          <button
-            onClick={() => { setOffsets({}); saveOffsets({}); }}
-            style={{
-              border: "1.5px solid #fca5a5",
-              background: "rgba(255,255,255,0.9)",
-              color: "#dc2626",
-              cursor: "pointer", fontSize: 10, fontWeight: 700,
-              padding: "3px 8px", borderRadius: 6,
-              backdropFilter: "blur(4px)",
-            }}
-          >Reset</button>
-        )}
-      </div>
       <div
         ref={wrapRef}
         style={{ position: "relative", cursor: !locked && dragKey ? "grabbing" : "default", userSelect: "none" }}
@@ -295,6 +267,9 @@ export default function Home() {
   const [foc1, setFoc1] = useState(false);
   const [foc2, setFoc2] = useState(false);
   const [focusedScan, setFocusedScan] = useState<Hit | null>(null);
+  const [chartLocks, setChartLocks] = useState<Record<string, boolean>>({});
+  const [chartResets, setChartResets] = useState<Record<string, number>>({});
+  const isChartLocked = (id: string) => chartLocks[id] !== false;
   const [scrolled, setScrolled] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const chartRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -987,6 +962,37 @@ export default function Home() {
                     {i === 0 ? "🟡" : "🔵"} {p.hit.code}
                   </span>
                 ))}
+                <span style={{ flex: 1 }} />
+                <button
+                  onClick={() => {
+                    if (isChartLocked(chart.id)) {
+                      const pass = prompt("Nhập mật khẩu để mở khoá:");
+                      if (pass === "922003") setChartLocks(prev => ({ ...prev, [chart.id]: false }));
+                      else if (pass !== null) alert("Sai mật khẩu!");
+                    } else {
+                      setChartLocks(prev => ({ ...prev, [chart.id]: true }));
+                    }
+                  }}
+                  style={{
+                    border: `1.5px solid ${isChartLocked(chart.id) ? "#d1d5db" : "#7c3aed"}`,
+                    background: isChartLocked(chart.id) ? "transparent" : "rgba(124,58,237,0.9)",
+                    color: isChartLocked(chart.id) ? t.muted : "#fff",
+                    cursor: "pointer", fontSize: 10, fontWeight: 700,
+                    padding: "2px 8px", borderRadius: 6,
+                  }}
+                >{isChartLocked(chart.id) ? "Mở khoá" : "Khoá lại"}</button>
+                {!isChartLocked(chart.id) && (
+                  <button
+                    onClick={() => setChartResets(prev => ({ ...prev, [chart.id]: (prev[chart.id] || 0) + 1 }))}
+                    style={{
+                      border: "1.5px solid #fca5a5",
+                      background: "transparent",
+                      color: "#dc2626",
+                      cursor: "pointer", fontSize: 10, fontWeight: 700,
+                      padding: "2px 8px", borderRadius: 6,
+                    }}
+                  >Reset</button>
+                )}
               </div>
               <div style={{
                 borderRadius: 16, overflow: "hidden",
@@ -999,7 +1005,7 @@ export default function Home() {
                 transition: "all 0.35s cubic-bezier(0.4,0,0.2,1)",
                 background: t.card,
               }}>
-                <ChartImage chart={chart} pins={chartPins} focusedCode={mode === "scan" ? focusedScan?.code ?? null : null} />
+                <ChartImage chart={chart} pins={chartPins} focusedCode={mode === "scan" ? focusedScan?.code ?? null : null} locked={isChartLocked(chart.id)} resetSignal={chartResets[chart.id] || 0} />
               </div>
             </div>
           );
