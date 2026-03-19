@@ -274,8 +274,10 @@ export default function Home() {
   const [chartLocks, setChartLocks] = useState<Record<string, boolean>>({});
   const [chartResets, setChartResets] = useState<Record<string, number>>({});
   const [sharedChartOffsets, setSharedChartOffsets] = useState<Record<string, OffsetMap>>({});
+  const [chartSaving, setChartSaving] = useState<Record<string, boolean>>({});
   const saveOffsetTimersRef = useRef<Record<string, number>>({});
   const isChartLocked = (id: string) => chartLocks[id] !== false;
+  const isChartSaving = (id: string) => chartSaving[id] === true;
   const [scrolled, setScrolled] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const chartRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -340,6 +342,7 @@ export default function Home() {
 
   const pushChartOffsets = useCallback((chartId: string, offsets: OffsetMap, immediate = false) => {
     setSharedChartOffsets(prev => ({ ...prev, [chartId]: offsets }));
+    setChartSaving(prev => ({ ...prev, [chartId]: true }));
     const oldTimer = saveOffsetTimersRef.current[chartId];
     if (oldTimer) {
       window.clearTimeout(oldTimer);
@@ -347,7 +350,11 @@ export default function Home() {
     }
 
     if (immediate) {
-      void persistChartOffsets(chartId, offsets).catch(() => {});
+      void persistChartOffsets(chartId, offsets)
+        .catch(() => {})
+        .finally(() => {
+          setChartSaving(prev => ({ ...prev, [chartId]: false }));
+        });
       return;
     }
 
@@ -357,6 +364,7 @@ export default function Home() {
       } catch {
       } finally {
         delete saveOffsetTimersRef.current[chartId];
+        setChartSaving(prev => ({ ...prev, [chartId]: false }));
       }
     }, 350);
   }, [persistChartOffsets]);
@@ -1082,6 +1090,9 @@ export default function Home() {
                 <span style={{ flex: 1 }} />
                 <button
                   onClick={() => {
+                    if (isChartSaving(chart.id)) {
+                      return;
+                    }
                     if (isChartLocked(chart.id)) {
                       const pass = prompt("Nhập mật khẩu để mở khoá:");
                       if (pass === "922003") setChartLocks(prev => ({ ...prev, [chart.id]: false }));
@@ -1092,13 +1103,13 @@ export default function Home() {
                     }
                   }}
                   style={{
-                    border: `1.5px solid ${isChartLocked(chart.id) ? "#d1d5db" : "#7c3aed"}`,
-                    background: isChartLocked(chart.id) ? "transparent" : "rgba(124,58,237,0.9)",
-                    color: isChartLocked(chart.id) ? t.muted : "#fff",
-                    cursor: "pointer", fontSize: 10, fontWeight: 700,
+                    border: `1.5px solid ${isChartSaving(chart.id) ? "#f59e0b" : isChartLocked(chart.id) ? "#d1d5db" : "#7c3aed"}`,
+                    background: isChartSaving(chart.id) ? "#fef3c7" : isChartLocked(chart.id) ? "transparent" : "rgba(124,58,237,0.9)",
+                    color: isChartSaving(chart.id) ? "#92400e" : isChartLocked(chart.id) ? t.muted : "#fff",
+                    cursor: isChartSaving(chart.id) ? "not-allowed" : "pointer", fontSize: 10, fontWeight: 700,
                     padding: "2px 8px", borderRadius: 6,
                   }}
-                >{isChartLocked(chart.id) ? "Mở khoá" : "Khoá lại"}</button>
+                >{isChartSaving(chart.id) ? "Đang lưu..." : isChartLocked(chart.id) ? "Mở khoá" : "Khoá lại"}</button>
                 {!isChartLocked(chart.id) && (
                   <button
                     onClick={() => setChartResets(prev => ({ ...prev, [chart.id]: (prev[chart.id] || 0) + 1 }))}
