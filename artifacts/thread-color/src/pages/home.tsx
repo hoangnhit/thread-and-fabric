@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback, CSSProperties } from "react";
 import { useLocation } from "wouter";
 import { useTheme, mkTheme } from "@/contexts/ThemeContext";
 import { detectChart, drawDebugOverlay, type DetectionResult } from "@/utils/chartDetector";
+import { supabase } from "@/lib/supabase";
 const API = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") || "/api";
 
 /* ─── DATA ─────────────────────────────────────────────────────── */
@@ -281,6 +282,23 @@ export default function Home() {
   const topRef = useRef<HTMLDivElement>(null);
 
   const fetchChartOffsets = useCallback(async (chartId: string): Promise<OffsetMap> => {
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from("chart_offsets")
+          .select("badge_key,dx,dy")
+          .eq("chart_id", chartId);
+        if (error || !data) return {};
+        const offsets: OffsetMap = {};
+        for (const row of data) {
+          offsets[row.badge_key] = { dx: Number(row.dx), dy: Number(row.dy) };
+        }
+        return offsets;
+      } catch {
+        return {};
+      }
+    }
+
     try {
       const res = await fetch(`${API}/chart-offsets/${encodeURIComponent(chartId)}`);
       if (!res.ok) return {};
@@ -296,6 +314,24 @@ export default function Home() {
     const oldTimer = saveOffsetTimersRef.current[chartId];
     if (oldTimer) window.clearTimeout(oldTimer);
     saveOffsetTimersRef.current[chartId] = window.setTimeout(async () => {
+      if (supabase) {
+        try {
+          const entries = Object.entries(offsets).map(([badgeKey, value]) => ({
+            chart_id: chartId,
+            badge_key: badgeKey,
+            dx: Number(value.dx),
+            dy: Number(value.dy),
+          }));
+
+          await supabase.from("chart_offsets").delete().eq("chart_id", chartId);
+          if (entries.length > 0) {
+            await supabase.from("chart_offsets").insert(entries);
+          }
+        } catch {
+        }
+        return;
+      }
+
       try {
         await fetch(`${API}/chart-offsets/${encodeURIComponent(chartId)}`, {
           method: "PUT",

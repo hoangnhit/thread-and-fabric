@@ -75,6 +75,7 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.99.2",
     "tesseract.js": "^7.0.0"
   }
 }
