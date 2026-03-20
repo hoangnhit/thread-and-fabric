@@ -135,6 +135,19 @@ function writeLocalOffsets(chartId: string, offsets: OffsetMap) {
   }
 }
 
+function offsetMapsEqual(a: OffsetMap, b: OffsetMap) {
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  for (const key of aKeys) {
+    const av = a[key];
+    const bv = b[key];
+    if (!bv) return false;
+    if (Math.abs(av.dx - bv.dx) > 1e-6 || Math.abs(av.dy - bv.dy) > 1e-6) return false;
+  }
+  return true;
+}
+
 function ChartImage({ chart, pins, focusedCode, locked, resetSignal, sharedOffsets, onOffsetsChange }: {
   chart: typeof CHARTS[0];
   pins: { hit: Hit; slotStyle: typeof SLOT_STYLES[0] }[];
@@ -504,6 +517,44 @@ export default function Home() {
       Object.values(saveOffsetTimersRef.current).forEach((timerId) => window.clearTimeout(timerId));
     };
   }, [fetchChartOffsets]);
+
+  const syncFromRemote = useCallback(async () => {
+    const loaded = await Promise.all(CHARTS.map(async (chart) => {
+      if (!isChartLocked(chart.id) || isChartSaving(chart.id)) {
+        return null;
+      }
+      try {
+        const offsets = await fetchChartOffsets(chart.id);
+        return { chartId: chart.id, offsets };
+      } catch {
+        return null;
+      }
+    }));
+
+    setSharedChartOffsets(prev => {
+      let changed = false;
+      const next = { ...prev };
+      for (const item of loaded) {
+        if (!item) continue;
+        if (Object.keys(item.offsets).length === 0) continue;
+        const current = latestOffsetsRef.current[item.chartId] ?? prev[item.chartId] ?? {};
+        if (!offsetMapsEqual(current, item.offsets)) {
+          changed = true;
+          next[item.chartId] = item.offsets;
+          latestOffsetsRef.current[item.chartId] = item.offsets;
+          writeLocalOffsets(item.chartId, item.offsets);
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [fetchChartOffsets, chartLocks, chartSaving]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void syncFromRemote();
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [syncFromRemote]);
 
   // OCR state
   const [ocrImg, setOcrImg] = useState<string | null>(null);
