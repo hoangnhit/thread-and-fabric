@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { useTheme, mkTheme } from "@/contexts/ThemeContext";
 import { detectChart, drawDebugOverlay, type DetectionResult } from "@/utils/chartDetector";
 import { supabase } from "@/lib/supabase";
-const API = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") || "/api";
+const API = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "");
 const EDIT_LOCK_PASSWORD = (import.meta.env.VITE_LAYOUT_EDIT_PASSWORD as string | undefined)?.trim() || "922003";
 
 /* ─── DATA ─────────────────────────────────────────────────────── */
@@ -382,6 +382,10 @@ export default function Home() {
       }
     }
 
+    if (!API) {
+      return {};
+    }
+
     try {
       const res = await fetch(`${API}/chart-offsets/${encodeURIComponent(chartId)}`);
       if (!res.ok) return {};
@@ -419,6 +423,11 @@ export default function Home() {
         const message = error instanceof Error ? error.message : String(error);
         saveErrors.push(`supabase: ${message}`);
       }
+    }
+
+    if (!API) {
+      saveErrors.push("api: not configured");
+      throw new Error(saveErrors.join(" | "));
     }
 
     try {
