@@ -412,13 +412,22 @@ export default function Home() {
 
     if (supabase) {
       try {
-        const entries = Object.entries(offsets).map(([badgeKey, value]) => ({
-          chart_id: chartId,
-          badge_key: badgeKey,
-          dx: Number(value.dx),
-          dy: Number(value.dy),
-        }));
+        // Ensure badge_key is unique
+        const seen = new Set<string>();
+        const entries = Object.entries(offsets)
+          .filter(([badgeKey]) => {
+            if (seen.has(badgeKey)) return false;
+            seen.add(badgeKey);
+            return true;
+          })
+          .map(([badgeKey, value]) => ({
+            chart_id: chartId,
+            badge_key: badgeKey,
+            dx: Number(value.dx),
+            dy: Number(value.dy),
+          }));
 
+        // Delete all rows for chart_id before insert
         const delResp = await supabase.from("chart_offsets").delete().eq("chart_id", chartId);
         if (delResp.error) {
           throw delResp.error;
