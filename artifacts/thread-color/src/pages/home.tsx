@@ -149,6 +149,16 @@ function offsetMapsEqual(a: OffsetMap, b: OffsetMap) {
   return true;
 }
 
+function getErrorMessage(error: unknown): string {
+  if (!error) return "unknown";
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object") {
+    const maybe = error as { message?: string; details?: string; hint?: string; error_description?: string };
+    return maybe.message || maybe.details || maybe.hint || maybe.error_description || JSON.stringify(error);
+  }
+  return String(error);
+}
+
 function ChartImage({ chart, pins, focusedCode, locked, resetSignal, sharedOffsets, onOffsetsChange }: {
   chart: typeof CHARTS[0];
   pins: { hit: Hit; slotStyle: typeof SLOT_STYLES[0] }[];
@@ -421,8 +431,11 @@ export default function Home() {
         }
         return;
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = getErrorMessage(error);
         saveErrors.push(`supabase: ${message}`);
+        if (!ENABLE_API_FALLBACK || !API) {
+          throw new Error(saveErrors.join(" | "));
+        }
       }
     }
 
@@ -442,7 +455,7 @@ export default function Home() {
       }
       return;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = getErrorMessage(error);
       saveErrors.push(`api: ${message}`);
     }
 
