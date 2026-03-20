@@ -412,20 +412,19 @@ export default function Home() {
 
     if (supabase) {
       try {
-        // Ensure badge_key is unique
-        const seen = new Set<string>();
-        const entries = Object.entries(offsets)
-          .filter(([badgeKey]) => {
-            if (seen.has(badgeKey)) return false;
-            seen.add(badgeKey);
-            return true;
-          })
-          .map(([badgeKey, value]) => ({
-            chart_id: chartId,
-            badge_key: badgeKey,
-            dx: Number(value.dx),
-            dy: Number(value.dy),
-          }));
+        // Ensure badge_key is unique (filter duplicate keys)
+        const uniqueEntries: Record<string, { dx: number; dy: number }> = {};
+        for (const [badgeKey, value] of Object.entries(offsets)) {
+          if (!(badgeKey in uniqueEntries)) {
+            uniqueEntries[badgeKey] = value;
+          }
+        }
+        const entries = Object.entries(uniqueEntries).map(([badgeKey, value]) => ({
+          chart_id: chartId,
+          badge_key: badgeKey,
+          dx: Number(value.dx),
+          dy: Number(value.dy),
+        }));
 
         // Delete all rows for chart_id before insert
         const delResp = await supabase.from("chart_offsets").delete().eq("chart_id", chartId);
