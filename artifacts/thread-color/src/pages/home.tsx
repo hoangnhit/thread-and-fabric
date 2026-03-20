@@ -332,8 +332,22 @@ export default function Home() {
   const isChartSaving = (id: string) => chartSaving[id] === true;
   const [scrolled, setScrolled] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [calendarCollapsed, setCalendarCollapsed] = useState(false);
+  const [calendarAutoHidden, setCalendarAutoHidden] = useState(false);
   const chartRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const topRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const updateMobile = () => {
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      setCalendarCollapsed(mobile);
+    };
+    updateMobile();
+    window.addEventListener("resize", updateMobile);
+    return () => window.removeEventListener("resize", updateMobile);
+  }, []);
 
   const fetchChartOffsets = useCallback(async (chartId: string): Promise<OffsetMap> => {
     if (supabase) {
@@ -627,10 +641,17 @@ export default function Home() {
       const nowScrolled = y > 80;
       setScrolled(nowScrolled);
       if (!nowScrolled) setCollapsed(false);
+      if (isMobile) {
+        const shouldHide = y > 120;
+        setCalendarAutoHidden(shouldHide);
+        if (shouldHide) setCalendarCollapsed(true);
+      } else {
+        setCalendarAutoHidden(false);
+      }
     };
     el.addEventListener("scroll", handler, { passive: true });
     return () => el.removeEventListener("scroll", handler);
-  }, []);
+  }, [isMobile]);
 
   // hits
   const hit1 = findCode(q1);
@@ -717,26 +738,89 @@ export default function Home() {
         style={{
           position: "fixed",
           top: 12,
-          left: 12,
+          right: 12,
           zIndex: 220,
           background: "linear-gradient(135deg, rgba(15,23,42,0.84), rgba(17,94,89,0.72))",
           border: "1px solid rgba(255,255,255,0.22)",
           borderRadius: 12,
-          padding: "7px 10px",
+          padding: isMobile ? "6px 8px" : "7px 10px",
           backdropFilter: "blur(8px)",
           boxShadow: "0 6px 16px rgba(0,0,0,0.25)",
-          maxWidth: 275,
-          pointerEvents: "none",
+          maxWidth: calendarCollapsed ? 46 : 275,
+          pointerEvents: "auto",
+          transition: "max-width 0.24s ease, padding 0.24s ease, transform 0.24s ease, opacity 0.24s ease",
+          overflow: "hidden",
+          transform: calendarAutoHidden ? "translateY(-8px)" : "translateY(0)",
+          opacity: calendarAutoHidden ? 0.88 : 1,
         }}
       >
-        <div style={{ fontSize: 10, fontWeight: 700, color: "#99f6e4", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-          Lịch hôm nay
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+          {!calendarCollapsed && (
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#99f6e4", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+              Lịch hôm nay
+            </div>
+          )}
+          {isMobile && (
+            <button
+              type="button"
+              onClick={() => setCalendarCollapsed(prev => !prev)}
+              aria-label={calendarCollapsed ? "Mở lịch" : "Thu gọn lịch"}
+              title={calendarCollapsed ? "Mở lịch" : "Thu gọn lịch"}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 999,
+                border: "1px solid rgba(255,255,255,0.35)",
+                background: "rgba(255,255,255,0.14)",
+                color: "#f8fafc",
+                cursor: "pointer",
+                padding: 0,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "background 0.2s ease",
+              }}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                style={{
+                  transform: calendarCollapsed ? "rotate(180deg)" : "rotate(0deg)",
+                  transition: "transform 0.22s ease",
+                }}
+              >
+                <path
+                  d="M10.5 3.5L6 8L10.5 12.5"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          )}
         </div>
-        <div style={{ marginTop: 3, fontSize: 13, fontWeight: 700, color: "#f8fafc", textTransform: "capitalize" }}>
-          {duongDate}
-        </div>
-        <div style={{ marginTop: 2, fontSize: 12, fontWeight: 700, color: "#ddd6fe" }}>
-          Âm lịch: {amDate}
+        <div
+          style={{
+            maxHeight: calendarCollapsed ? 0 : 80,
+            opacity: calendarCollapsed ? 0 : 1,
+            transform: calendarCollapsed ? "translateY(-6px)" : "translateY(0)",
+            transition: "max-height 0.24s ease, opacity 0.2s ease, transform 0.2s ease",
+            overflow: "hidden",
+          }}
+        >
+          {!calendarCollapsed && (
+            <>
+            <div style={{ marginTop: 3, fontSize: 13, fontWeight: 700, color: "#f8fafc", textTransform: "capitalize" }}>
+              {duongDate}
+            </div>
+            <div style={{ marginTop: 2, fontSize: 12, fontWeight: 700, color: "#ddd6fe" }}>
+              Âm lịch: {amDate}
+            </div>
+            </>
+          )}
         </div>
       </div>
 
