@@ -4,6 +4,7 @@ import { useTheme, mkTheme } from "@/contexts/ThemeContext";
 import { detectChart, drawDebugOverlay, type DetectionResult } from "@/utils/chartDetector";
 import { supabase } from "@/lib/supabase";
 const API = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "");
+const ENABLE_API_FALLBACK = ["1", "true", "yes", "on"].includes(((import.meta.env.VITE_ENABLE_API_FALLBACK as string | undefined) ?? "").toLowerCase());
 const EDIT_LOCK_PASSWORD = (import.meta.env.VITE_LAYOUT_EDIT_PASSWORD as string | undefined)?.trim() || "922003";
 
 /* ─── DATA ─────────────────────────────────────────────────────── */
@@ -382,7 +383,7 @@ export default function Home() {
       }
     }
 
-    if (!API) {
+    if (!ENABLE_API_FALLBACK || !API) {
       return {};
     }
 
@@ -425,8 +426,8 @@ export default function Home() {
       }
     }
 
-    if (!API) {
-      saveErrors.push("api: not configured");
+    if (!ENABLE_API_FALLBACK || !API) {
+      saveErrors.push("no backend configured (set VITE_SUPABASE_URL/VITE_SUPABASE_ANON_KEY or enable VITE_ENABLE_API_FALLBACK with VITE_API_BASE_URL)");
       throw new Error(saveErrors.join(" | "));
     }
 
