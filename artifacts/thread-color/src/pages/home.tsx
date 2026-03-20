@@ -371,14 +371,14 @@ export default function Home() {
           .from("chart_offsets")
           .select("badge_key,dx,dy")
           .eq("chart_id", chartId);
-        if (error || !data) return {};
-        const offsets: OffsetMap = {};
-        for (const row of data) {
-          offsets[row.badge_key] = { dx: Number(row.dx), dy: Number(row.dy) };
+        if (!error && data) {
+          const offsets: OffsetMap = {};
+          for (const row of data) {
+            offsets[row.badge_key] = { dx: Number(row.dx), dy: Number(row.dy) };
+          }
+          return offsets;
         }
-        return offsets;
       } catch {
-        return {};
       }
     }
 
@@ -393,35 +393,50 @@ export default function Home() {
   }, []);
 
   const persistChartOffsets = useCallback(async (chartId: string, offsets: OffsetMap) => {
-    if (supabase) {
-      const entries = Object.entries(offsets).map(([badgeKey, value]) => ({
-        chart_id: chartId,
-        badge_key: badgeKey,
-        dx: Number(value.dx),
-        dy: Number(value.dy),
-      }));
+    const saveErrors: string[] = [];
 
-      const delResp = await supabase.from("chart_offsets").delete().eq("chart_id", chartId);
-      if (delResp.error) {
-        throw delResp.error;
-      }
-      if (entries.length > 0) {
-        const insResp = await supabase.from("chart_offsets").insert(entries);
-        if (insResp.error) {
-          throw insResp.error;
+    if (supabase) {
+      try {
+        const entries = Object.entries(offsets).map(([badgeKey, value]) => ({
+          chart_id: chartId,
+          badge_key: badgeKey,
+          dx: Number(value.dx),
+          dy: Number(value.dy),
+        }));
+
+        const delResp = await supabase.from("chart_offsets").delete().eq("chart_id", chartId);
+        if (delResp.error) {
+          throw delResp.error;
         }
+        if (entries.length > 0) {
+          const insResp = await supabase.from("chart_offsets").insert(entries);
+          if (insResp.error) {
+            throw insResp.error;
+          }
+        }
+        return;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        saveErrors.push(`supabase: ${message}`);
+      }
+    }
+
+    try {
+      const res = await fetch(`${API}/chart-offsets/${encodeURIComponent(chartId)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ offsets }),
+      });
+      if (!res.ok) {
+        throw new Error(`api status ${res.status}`);
       }
       return;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      saveErrors.push(`api: ${message}`);
     }
 
-    const res = await fetch(`${API}/chart-offsets/${encodeURIComponent(chartId)}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ offsets }),
-    });
-    if (!res.ok) {
-      throw new Error(`save failed: ${res.status}`);
-    }
+    throw new Error(saveErrors.join(" | "));
   }, []);
 
   const withTimeout = useCallback(<T,>(promise: Promise<T>, ms = 12000): Promise<T> => {
@@ -456,8 +471,9 @@ export default function Home() {
       setChartSaving(prev => ({ ...prev, [chartId]: true }));
       setSyncWarning(null);
       void withTimeout(persistChartOffsets(chartId, current))
-        .catch(() => {
-          setSyncWarning("Không lưu được lên server. Vui lòng kiểm tra kết nối / cấu hình Supabase.");
+        .catch((error) => {
+          const message = error instanceof Error ? error.message : "unknown";
+          setSyncWarning(`Không lưu được lên server: ${message}`);
         })
         .finally(() => {
           setChartSaving(prev => ({ ...prev, [chartId]: false }));
@@ -471,8 +487,9 @@ export default function Home() {
         setSyncWarning(null);
         const current = latestOffsetsRef.current[chartId] ?? offsets;
         await withTimeout(persistChartOffsets(chartId, current));
-      } catch {
-        setSyncWarning("Không lưu được lên server. Vui lòng kiểm tra kết nối / cấu hình Supabase.");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "unknown";
+        setSyncWarning(`Không lưu được lên server: ${message}`);
       } finally {
         delete saveOffsetTimersRef.current[chartId];
         setChartSaving(prev => ({ ...prev, [chartId]: false }));
