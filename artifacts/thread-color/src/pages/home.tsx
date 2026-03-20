@@ -4,6 +4,7 @@ import { useTheme, mkTheme } from "@/contexts/ThemeContext";
 import { detectChart, drawDebugOverlay, type DetectionResult } from "@/utils/chartDetector";
 import { supabase } from "@/lib/supabase";
 const API = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") || "/api";
+const EDIT_LOCK_PASSWORD = (import.meta.env.VITE_LAYOUT_EDIT_PASSWORD as string | undefined)?.trim() || "922003";
 
 /* ─── DATA ─────────────────────────────────────────────────────── */
 type ChartId = "ae" | "fj" | "ko" | "pt" | "uy";
@@ -326,6 +327,7 @@ export default function Home() {
     return init;
   });
   const [chartSaving, setChartSaving] = useState<Record<string, boolean>>({});
+  const [syncWarning, setSyncWarning] = useState<string | null>(null);
   const saveOffsetTimersRef = useRef<Record<string, number>>({});
   const latestOffsetsRef = useRef<Record<string, OffsetMap>>({});
   const isChartLocked = (id: string) => chartLocks[id] !== false;
@@ -399,11 +401,14 @@ export default function Home() {
       return;
     }
 
-    await fetch(`${API}/chart-offsets/${encodeURIComponent(chartId)}`, {
+    const res = await fetch(`${API}/chart-offsets/${encodeURIComponent(chartId)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ offsets }),
     });
+    if (!res.ok) {
+      throw new Error(`save failed: ${res.status}`);
+    }
   }, []);
 
   const withTimeout = useCallback(<T,>(promise: Promise<T>, ms = 12000): Promise<T> => {
@@ -436,8 +441,11 @@ export default function Home() {
     if (immediate) {
       const current = latestOffsetsRef.current[chartId] ?? offsets;
       setChartSaving(prev => ({ ...prev, [chartId]: true }));
+      setSyncWarning(null);
       void withTimeout(persistChartOffsets(chartId, current))
-        .catch(() => {})
+        .catch(() => {
+          setSyncWarning("Không lưu được lên server. Vui lòng kiểm tra kết nối / cấu hình Supabase.");
+        })
         .finally(() => {
           setChartSaving(prev => ({ ...prev, [chartId]: false }));
         });
@@ -447,9 +455,11 @@ export default function Home() {
     saveOffsetTimersRef.current[chartId] = window.setTimeout(async () => {
       try {
         setChartSaving(prev => ({ ...prev, [chartId]: true }));
+        setSyncWarning(null);
         const current = latestOffsetsRef.current[chartId] ?? offsets;
         await withTimeout(persistChartOffsets(chartId, current));
       } catch {
+        setSyncWarning("Không lưu được lên server. Vui lòng kiểm tra kết nối / cấu hình Supabase.");
       } finally {
         delete saveOffsetTimersRef.current[chartId];
         setChartSaving(prev => ({ ...prev, [chartId]: false }));
@@ -459,31 +469,35 @@ export default function Home() {
 
   useEffect(() => {
     let disposed = false;
-    const loadFromRemoteIfLocalEmpty = async () => {
+    const loadFromRemoteFirst = async () => {
       const loaded = await Promise.all(CHARTS.map(async (chart) => {
         const localOffsets = readLocalOffsets(chart.id);
-        if (Object.keys(localOffsets).length > 0) {
-          latestOffsetsRef.current[chart.id] = localOffsets;
-          return { chartId: chart.id, offsets: null as OffsetMap | null };
+        let remoteOffsets: OffsetMap = {};
+        try {
+          remoteOffsets = await fetchChartOffsets(chart.id);
+        } catch {
+          remoteOffsets = {};
         }
-        const offsets = await fetchChartOffsets(chart.id);
-        return { chartId: chart.id, offsets };
+
+        const useRemote = Object.keys(remoteOffsets).length > 0;
+        const selected = useRemote ? remoteOffsets : localOffsets;
+
+        latestOffsetsRef.current[chart.id] = selected;
+        writeLocalOffsets(chart.id, selected);
+
+        return { chartId: chart.id, offsets: selected };
       }));
       if (disposed) return;
       setSharedChartOffsets(prev => {
         const next = { ...prev };
         for (const item of loaded) {
-          if (item.offsets) {
-            next[item.chartId] = item.offsets;
-            latestOffsetsRef.current[item.chartId] = item.offsets;
-            writeLocalOffsets(item.chartId, item.offsets);
-          }
+          next[item.chartId] = item.offsets;
         }
         return next;
       });
     };
 
-    loadFromRemoteIfLocalEmpty();
+    loadFromRemoteFirst();
 
     return () => {
       disposed = true;
@@ -979,19 +993,47 @@ export default function Home() {
                 )}
               </div>
               {!collapsed && q1 && (
-                <div style={{ marginTop: 12 }}>
+                <div style={{ marginTop: 8, display: "flex", justifyContent: "flex-end" }}>
                   {hit1 ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#fef3c7", border: "1.5px solid #fde68a", borderRadius: 10, padding: "10px 14px" }}>
-                      <span style={{ fontSize: 20 }}>✅</span>
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: "#92400e", fontFamily: "monospace" }}>{hit1.code}</div>
-                        <div style={{ fontSize: 12, color: "#78716c" }}>Cột <b>{hit1.col}</b> · Hàng <b>{hit1.row + 1}</b> · {hit1.chartId === "fj" ? "Bảng F–J" : "Bảng K–O"}</div>
-                      </div>
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        background: "#fef3c7",
+                        border: "1.5px solid #fde68a",
+                        borderRadius: 999,
+                        padding: "5px 10px",
+                        maxWidth: "min(100%, 280px)",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      <span style={{ fontSize: 12 }}>✅</span>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: "#92400e", fontFamily: "monospace" }}>{hit1.code}</span>
+                      <span style={{ fontSize: 11, color: "#78716c" }}>C{hit1.col} · H{hit1.row + 1} · {hit1.chartId.toUpperCase()}</span>
                     </div>
                   ) : (
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#fef2f2", border: "1.5px solid #fecaca", borderRadius: 10, padding: "10px 14px" }}>
-                      <span style={{ fontSize: 20 }}>❌</span>
-                      <div style={{ fontSize: 13, color: "#dc2626" }}>Không tìm thấy mã &ldquo;{q1}&rdquo;</div>
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        background: "#fef2f2",
+                        border: "1.5px solid #fecaca",
+                        borderRadius: 999,
+                        padding: "5px 10px",
+                        fontSize: 11,
+                        color: "#dc2626",
+                        maxWidth: "min(100%, 280px)",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      <span style={{ fontSize: 12 }}>❌</span>
+                      <span>Không thấy: {q1.toUpperCase()}</span>
                     </div>
                   )}
                 </div>
@@ -1315,6 +1357,23 @@ export default function Home() {
       )}
 
       {/* ── CHARTS ── */}
+      {syncWarning && (
+        <div style={{ maxWidth: 1140, margin: "0 auto", padding: "6px 16px 0" }}>
+          <div
+            style={{
+              background: "#fff7ed",
+              border: "1px solid #fdba74",
+              color: "#9a3412",
+              borderRadius: 10,
+              padding: "8px 10px",
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+          >
+            ⚠ {syncWarning}
+          </div>
+        </div>
+      )}
       {brand !== "dantuong" && <main style={{ maxWidth: 1140, margin: "0 auto", padding: "24px 16px 40px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(500px, 100%), 1fr))", gap: 24 }}>
         {CHARTS.map((chart) => {
           const chartPins = pins.filter(p => p.hit.chartId === chart.id);
@@ -1356,7 +1415,7 @@ export default function Home() {
                     }
                     if (isChartLocked(chart.id)) {
                       const pass = prompt("Nhập mật khẩu để mở khoá:");
-                      if (pass === "922003") setChartLocks(prev => ({ ...prev, [chart.id]: false }));
+                      if (pass === EDIT_LOCK_PASSWORD) setChartLocks(prev => ({ ...prev, [chart.id]: false }));
                       else if (pass !== null) alert("Sai mật khẩu!");
                     } else {
                       pushChartOffsets(chart.id, latestOffsetsRef.current[chart.id] ?? sharedChartOffsets[chart.id] ?? {}, true);
